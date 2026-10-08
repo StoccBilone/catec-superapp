@@ -19,7 +19,7 @@ export default function ConversationRoute() {
     if (profile) void getChatRooms(profile.id).then(rooms => { if (active) setRoom(rooms.find(item => item.id === id) || null); }).catch(() => {}).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [id, profile]);
-  return <SafeAreaView style={{ flex: 1, backgroundColor: colors.canvas }}>
+  return <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1, backgroundColor: colors.canvas }}>
     {loading ? <ActivityIndicator color={colors.accent} /> : room && profile ? <ChatScreen profile={{ ...profile, group: room.storageKey }} groupName={room.collegeGroup} title={room.title} onBack={() => router.back()} onOpenNotifications={openNotifications} /> : <TouchableOpacity onPress={() => router.back()}><Text style={{ padding: 24, color: colors.accent }}>Беседа недоступна. Вернуться</Text></TouchableOpacity>}
   </SafeAreaView>;
 }

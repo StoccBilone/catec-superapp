@@ -40,7 +40,7 @@ export const GlassCard: React.FC<GlassCardProps> = ({
       : ['rgba(255, 255, 255, 0.95)', 'rgba(0, 0, 0, 0.06)', 'rgba(0, 0, 0, 0.02)'],
   };
 
-  const currentGlow = glowBorderColors[glowColor] || glowBorderColors.none;
+  const currentGlow = glowBorderColors.none;
 
   return (
     <View

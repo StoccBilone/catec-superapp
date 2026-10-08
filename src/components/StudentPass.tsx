@@ -12,10 +12,10 @@ export function StudentPass({ profile }: { profile: UserProfile }) {
   const { colors } = useTheme();
   const [visible, setVisible] = useState(false);
   return <>
-    <LinearGradient colors={['#e1f4ff', '#a7d9f6']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.card}>
-      <View style={s.top}><View><Text style={s.label}>ЦАТЭК · Алматы</Text><Text style={s.title}>Студенческий пропуск</Text></View><ShieldCheck size={28} color="#126cb5" /></View>
-      <Text translate={false} style={s.name} numberOfLines={1}>{profile.fullName}</Text><Text style={s.detail}>{profile.group} · {profile.course} курс · № {profile.studentId}</Text>
-      <View style={s.bottom}><TouchableOpacity onPress={() => setVisible(true)} style={s.qrButton}><QrCode color="#126cb5" size={18} /><Text style={s.buttonText}>Показать QR</Text></TouchableOpacity><TouchableOpacity onPress={() => setVisible(true)} style={s.detailsButton}><Text style={s.buttonText}>Для входа</Text><ChevronRight color="#126cb5" size={16} /></TouchableOpacity></View>
+    <LinearGradient colors={[colors.canvasElevated, colors.accentLight]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.card}>
+      <View style={s.top}><View><Text style={[s.label, { color: colors.textSecondary }]}>ЦАТЭК · Алматы</Text><Text style={[s.title, { color: colors.textPrimary }]}>Студенческий пропуск</Text></View><ShieldCheck size={28} color={colors.textPrimary} /></View>
+      <Text translate={false} style={[s.name, { color: colors.textPrimary }]} numberOfLines={1}>{profile.fullName}</Text><Text style={[s.detail, { color: colors.textSecondary }]}>{profile.group} · {profile.course} курс · № {profile.studentId}</Text>
+      <View style={s.bottom}><TouchableOpacity onPress={() => setVisible(true)} style={[s.qrButton, { backgroundColor: colors.canvasElevated }]}><QrCode color={colors.textPrimary} size={18} /><Text style={[s.buttonText, { color: colors.textPrimary }]}>Показать QR</Text></TouchableOpacity><TouchableOpacity onPress={() => setVisible(true)} style={s.detailsButton}><Text style={[s.buttonText, { color: colors.textPrimary }]}>Для входа</Text><ChevronRight color={colors.textPrimary} size={16} /></TouchableOpacity></View>
     </LinearGradient>
     <GlassModal visible={visible} onClose={() => setVisible(false)}><View style={s.modal}><Text style={[s.modalTitle, { color: colors.textPrimary }]}>Пропуск в колледж</Text><Text translate={false} style={[s.modalName, { color: colors.textSecondary }]}>{profile.fullName}</Text><View style={s.qr}><QRCode value={`CATEC-DEMO:${profile.studentId}`} size={216} quietZone={12} color="#172536" backgroundColor="#ffffff" /></View><Text style={[s.modalName, { color: colors.textSecondary }]}>{profile.group} · № {profile.studentId}</Text></View></GlassModal>
   </>;

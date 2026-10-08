@@ -1,8 +1,9 @@
 import React from 'react';
-import { StyleSheet, ViewStyle, TextStyle, View, ActivityIndicator } from "react-native";
+import { StyleSheet, ViewStyle, View, ActivityIndicator } from "react-native";
 import { TouchableOpacity, Text } from "./Typography";
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTheme } from '../theme/themeContext';
 import { LiquidTheme } from '../theme/liquidTheme';
 
 interface GlassButtonProps {
@@ -26,20 +27,21 @@ export const GlassButton: React.FC<GlassButtonProps> = ({
   disabled = false,
   style,
 }) => {
+  const { colors } = useTheme();
   const handlePress = () => {
     if (disabled || loading) return;
     try {
       Haptics.selectionAsync();
-    } catch (e) {}
+    } catch {}
     onPress();
   };
 
   const getGradientColors = (): [string, string] => {
     switch (variant) {
       case 'primary':
-        return ['#0284c7', '#2563eb'];
+        return [colors.accent, colors.accent];
       case 'secondary':
-        return ['#7c3aed', '#9333ea'];
+        return [colors.accent, colors.accent];
       case 'danger':
         return ['#e11d48', '#be123c'];
       case 'glass':
@@ -64,15 +66,15 @@ export const GlassButton: React.FC<GlassButtonProps> = ({
         style={[
           styles.gradientInner,
           styles[`inner_${size}`],
-          isGlass && styles.glassBorder,
+          isGlass && [styles.glassBorder, { borderColor: colors.cardBorder }],
         ]}
       >
         {loading ? (
-          <ActivityIndicator color="#ffffff" size="small" />
+          <ActivityIndicator color={colors.onAccent} size="small" />
         ) : (
           <View style={styles.contentRow}>
             {icon && <View style={styles.iconWrapper}>{icon}</View>}
-            <Text style={[styles.text, styles[`text_${size}`], isGlass && styles.glassText]}>
+            <Text style={[styles.text, styles[`text_${size}`], { color: isGlass ? colors.textPrimary : colors.onAccent }]}>
               {title}
             </Text>
           </View>

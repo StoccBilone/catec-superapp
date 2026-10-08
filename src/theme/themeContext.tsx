@@ -18,6 +18,7 @@ export interface ThemeColors {
   textMuted: string;
   textHighlight: string;
   accent: string;
+  onAccent: string;
   accentLight: string;
   navBarBg: string;
   navBarBorder: string;
@@ -36,40 +37,22 @@ export interface ThemeColors {
 }
 
 const lightColors: ThemeColors = {
-  mode: 'light',
-  canvas: '#ffffff',
-  canvasElevated: '#ffffff',
-  cardBg: 'rgba(255, 255, 255, 0.94)',
-  cardElevated: '#ffffff',
-  cardBorder: '#e7edf3',
-  cardBorderHighlight: '#b4d7f3',
-  textPrimary: '#172536',
-  textSecondary: '#586b7e',
-  textMuted: '#718195',
-  textHighlight: '#126cb5',
-  accent: '#197fc4',
-  accentLight: '#eaf5fc',
-  navBarBg: 'rgba(255, 255, 255, 0.92)',
-  navBarBorder: '#e7edf3',
-  navPillBg: '#eaf5fc',
-  navPillBorder: '#b4d7f3',
-  inputBg: '#ffffff',
-  inputBorder: '#e7edf3',
-  tagBg: '#eaf5fc',
-  divider: '#edf1f5',
-  danger: '#e11d48',
-  success: '#059669',
-  warning: '#d97706',
-  shadowColor: '#23384d',
+  mode: 'light', canvas: '#F2F2F2', canvasElevated: '#F8F8F8',
+  cardBg: '#F8F8F8', cardElevated: '#F8F8F8', cardBorder: '#DDDEDD', cardBorderHighlight: '#C7C9C8',
+  textPrimary: '#161817', textSecondary: '#555957', textMuted: '#707572', textHighlight: '#161817',
+  accent: '#161817', onAccent: '#F8F8F8', accentLight: '#F2F2F2',
+  navBarBg: 'rgba(248,248,248,0.92)', navBarBorder: '#DDDEDD', navPillBg: '#F2F2F2', navPillBorder: '#C7C9C8',
+  inputBg: '#F8F8F8', inputBorder: '#DDDEDD', tagBg: '#F2F2F2', divider: '#DDDEDD',
+  danger: '#D93345', success: '#555957', warning: '#555957', shadowColor: '#000000',
 };
-
 const darkColors: ThemeColors = {
-  ...lightColors, mode: 'dark', canvas: '#0e131b', canvasElevated: '#171e28',
-  cardBg: '#171e28', cardElevated: '#202b38', cardBorder: '#2b3948', cardBorderHighlight: '#365b77',
-  textPrimary: '#f1f6fb', textSecondary: '#b5c5d5', textMuted: '#92a6bb', textHighlight: '#75c7ff',
-  accent: '#65b9f0', accentLight: '#18334a', navBarBg: 'rgba(23,30,40,0.92)', navBarBorder: '#2b3948',
-  navPillBg: '#18334a', navPillBorder: '#365b77', inputBg: '#202b38', inputBorder: '#344455',
-  tagBg: '#18334a', divider: '#2b3948', shadowColor: '#000000',
+  ...lightColors, mode: 'dark', canvas: '#0A0A0A', canvasElevated: '#161817',
+  cardBg: '#161817', cardElevated: '#161817', cardBorder: '#303330', cardBorderHighlight: '#444844',
+  textPrimary: '#F2F2F2', textSecondary: '#B6BBB7', textMuted: '#959C96', textHighlight: '#F2F2F2',
+  accent: '#F2F2F2', onAccent: '#0A0A0A', accentLight: '#161817',
+  navBarBg: 'rgba(22,24,23,0.92)', navBarBorder: '#303330', navPillBg: '#161817', navPillBorder: '#444844',
+  inputBg: '#161817', inputBorder: '#303330', tagBg: '#161817', divider: '#303330',
+  success: '#B6BBB7', warning: '#B6BBB7',
 };
 
 interface ThemeContextType {

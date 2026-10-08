@@ -26,7 +26,9 @@ export interface Lesson {
   timeStart: string; // e.g. "11:25", "13:25", "15:05", "16:50", "18:30"
   timeEnd: string; // e.g. "12:55", "14:55", "16:35", "18:20", "20:00"
   subject: string;
-  type: LessonType;
+  type?: LessonType;
+  variant?: number;
+  sourceRange?: string;
   room: string;
   building: string;
   teacher: string;

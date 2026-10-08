@@ -60,7 +60,7 @@ export const GlassHeader: React.FC<GlassHeaderProps> = ({
           ]}
         >
           <Bell size={20} color={colors.textPrimary} />
-          <View style={[styles.bellDot, { backgroundColor: colors.danger }]} />
+
         </TouchableOpacity>
       )}
     </View>
@@ -71,8 +71,7 @@ const styles = StyleSheet.create({
   container: {
     flexShrink: 0,
     paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 14,
+    height: 72,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',

@@ -1,677 +1,81 @@
-import React, { useState, useMemo } from 'react';
-import { View, StyleSheet, ScrollView } from "react-native";
-import { Text, TouchableOpacity, TextInput } from "../components/Typography";
-import * as Haptics from 'expo-haptics';
-import {
-  Clock,
-  MapPin,
-  User,
-  Calendar,
-  Layers,
-  FileText,
-  BookOpen,
-  ChevronDown,
-} from 'lucide-react-native';
-import { Lesson, UserProfile } from '../types';
-import { CATEC_LESSONS, CATEC_GROUPS } from '../data/catecData';
-import { useTheme } from '../theme/themeContext';
-import { GlassCard } from '../components/GlassCard';
+import React, { useEffect, useMemo, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { Bell, ChevronDown, Clock } from 'lucide-react-native';
+import { Alert, Pressable, Text, TextInput } from '../components/Typography';
 import { GlassHeader } from '../components/GlassHeader';
 import { GlassModal } from '../components/GlassModal';
-import { GlassButton } from '../components/GlassButton';
+import { GlassTool } from '../components/GlassTool';
+import { Lesson, UserProfile } from '../types';
+import { CATEC_GROUPS, CATEC_LESSONS } from '../data/catecData';
+import { BELL_TIMES, collegeClock, countdown, scheduleStatus } from '../services/scheduleClock';
+import { StorageService } from '../services/storage';
+import { useTheme } from '../theme/themeContext';
 
-interface ScheduleScreenProps {
-  profile: UserProfile;
-  onOpenNotifications: () => void;
-  onUpdateGroup: (groupName: string) => void;
+const DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт'];
+export function ScheduleScreen({ profile, onUpdateGroup }: { profile: UserProfile; onOpenNotifications: () => void; onUpdateGroup: (name: string) => void | Promise<void> }) {
+  const { colors } = useTheme();
+  const [now, setNow] = useState(() => new Date());
+  const [day, setDay] = useState(() => { const today = collegeClock(new Date()).day; return today >= 1 && today <= 5 ? today : 1; });
+  const [subgroupValue, setSubgroup] = useState<0 | 1 | 2>(0);
+  const [loadedSubgroupKey, setLoadedSubgroupKey] = useState('');
+  const [picker, setPicker] = useState(false);
+  const [bells, setBells] = useState(false);
+  const [selected, setSelected] = useState<Lesson | null>(null);
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [note, setNote] = useState('');
+  const [saving, setSaving] = useState(false);
+  const groupLessons = useMemo(() => CATEC_LESSONS.filter(item => item.group === profile.group), [profile.group]);
+  const subgroupKey = `@catec_subgroup:${profile.cloudId || profile.id}:${profile.group}`;
+  const subgroupReady = loadedSubgroupKey === subgroupKey;
+  const subgroup = subgroupReady ? subgroupValue : 0;
+  const lessons = groupLessons.filter(item => !item.variant || !subgroup || item.variant === subgroup);
+  const dayLessons = lessons.filter(item => item.dayOfWeek === day).sort((a, b) => a.pairNumber - b.pairNumber);
+  const status = scheduleStatus(lessons, now);
+  const noteKey = (lesson: Lesson) => `${profile.cloudId || profile.id}:${lesson.id}`;
+  useEffect(() => { void StorageService.getLessonNotes().then(setNotes); }, []);
+  useEffect(() => {
+    let active = true;
+    void AsyncStorage.getItem(subgroupKey).then(value => { if (active) { setSubgroup(value === '1' ? 1 : value === '2' ? 2 : 0); setLoadedSubgroupKey(subgroupKey); } }).catch(() => { if (active) setLoadedSubgroupKey(subgroupKey); });
+    return () => { active = false; };
+  }, [subgroupKey]);
+  useEffect(() => { const timer = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(timer); }, []);
+  const saveNote = async () => {
+    if (!selected || saving) return;
+    setSaving(true);
+    try { const key = noteKey(selected); await StorageService.saveLessonNote(key, note); setNotes(previous => ({ ...previous, [key]: note })); setSelected(null); }
+    catch { Alert.alert('Не удалось сохранить', 'Попробуйте ещё раз.'); }
+    finally { setSaving(false); }
+  };
+  return <View style={{ flex: 1, backgroundColor: colors.canvas }}>
+    <GlassHeader title="Расписание" showNotificationBell={false} />
+    <ScrollView contentInsetAdjustmentBehavior="never" contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
+      <View style={s.groupRow}><Pressable accessibilityLabel="Учебная группа" onPress={() => setPicker(true)} style={[s.groupButton, { backgroundColor: colors.cardBg }]}><Text translate={false} style={{ color: colors.textPrimary, fontSize: 16, fontWeight: '600' }}>{profile.group}</Text><ChevronDown size={17} color={colors.textSecondary} /></Pressable><GlassTool label="Расписание звонков" onPress={() => setBells(true)}><Bell size={20} color={colors.textPrimary} /></GlassTool></View>
+      {groupLessons.some(item => item.variant) && <View style={[s.days, { marginTop: 0 }]}>{([0, 1, 2] as const).map(value => <Pressable key={value} disabled={!subgroupReady} onPress={() => { setSubgroup(value); void AsyncStorage.setItem(subgroupKey, String(value)).catch(() => Alert.alert('Не удалось сохранить', 'Попробуйте ещё раз.')); }} style={[s.day, { backgroundColor: subgroup === value ? colors.accent : colors.cardBg }]}><Text style={{ color: subgroup === value ? colors.onAccent : colors.textSecondary, fontSize: 12 }}>{value === 0 ? 'Обе' : 'Подгруппа'}{value > 0 ? ` ${value}` : ''}</Text></Pressable>)}</View>}
+      <View style={[s.clock, { backgroundColor: colors.cardBg }]}>
+        <View style={s.clockRow}><Clock size={17} color={colors.textMuted} /><Text style={{ color: colors.textSecondary, fontSize: 13 }}>Алматы</Text><Text style={{ color: colors.textPrimary, marginLeft: 'auto', fontSize: 22, fontVariant: ['tabular-nums'] }}>{status.time}</Text></View>
+        <Text style={{ color: colors.textPrimary, fontSize: 16, fontWeight: '600', marginTop: 18 }}>{status.current.length ? 'Сейчас идёт пара' : 'Сейчас занятий нет'}</Text>
+        {status.current.map(lesson => <Text translate={false} key={lesson.id} style={{ color: colors.textSecondary, fontSize: 14, lineHeight: 21, marginTop: 6 }}>{lesson.subject}</Text>)}
+        {status.remaining !== undefined && <View style={s.countdown}><Text style={{ color: colors.textMuted, fontSize: 13 }}>До конца пары</Text><Text style={{ color: colors.textPrimary, fontSize: 16, fontVariant: ['tabular-nums'] }}>{countdown(status.remaining)}</Text></View>}
+        {status.wait !== undefined && <><View style={s.countdown}><Text style={{ color: colors.textMuted, fontSize: 13 }}>До следующей пары</Text><Text style={{ color: colors.textPrimary, fontSize: 16, fontVariant: ['tabular-nums'] }}>{countdown(status.wait)}</Text></View><Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 6 }}>{DAYS[status.next[0].dayOfWeek - 1]} · {status.next[0].timeStart}</Text></>}
+      </View>
+      <View style={s.days}>{DAYS.map((label, index) => <Pressable key={label} onPress={() => setDay(index + 1)} accessibilityRole="button" accessibilityState={{ selected: day === index + 1 }} style={[s.day, { backgroundColor: day === index + 1 ? colors.accent : colors.cardBg }]}><Text style={{ color: day === index + 1 ? colors.onAccent : colors.textSecondary, fontSize: 15, fontWeight: '600' }}>{label}</Text></Pressable>)}</View>
+      {!dayLessons.length && <Text style={{ color: colors.textMuted, textAlign: 'center', marginVertical: 36 }}>Занятий нет</Text>}
+      {dayLessons.map(lesson => {
+        const savedNote = notes[noteKey(lesson)] || notes[lesson.id];
+        return <Pressable key={lesson.id} onPress={() => { setSelected(lesson); setNote(savedNote || ''); }} style={[s.lesson, { backgroundColor: colors.cardBg, borderColor: status.current.some(item => item.id === lesson.id) ? colors.accent : colors.cardBorder }]}>
+          <View style={s.lessonTop}><View><Text style={{ color: colors.textSecondary, fontSize: 12 }}>{'Пара'} {lesson.pairNumber}</Text>{lesson.variant && <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 4 }}>{'Подгруппа'} {lesson.variant}</Text>}</View><Text style={{ color: colors.textPrimary, fontSize: 13, fontVariant: ['tabular-nums'] }}>{lesson.timeStart}–{lesson.timeEnd}</Text></View>
+          <Text translate={false} style={{ color: colors.textPrimary, fontSize: 17, fontWeight: '600', lineHeight: 24, marginTop: 12 }}>{lesson.subject}</Text>
+          {lesson.teacher ? <Text translate={false} style={{ color: colors.textSecondary, fontSize: 14, marginTop: 12 }}>{lesson.teacher}</Text> : null}
+          <Text translate={false} style={{ color: colors.textMuted, fontSize: 13, marginTop: 6 }}>{lesson.room}</Text>
+          {savedNote && <Text translate={false} numberOfLines={2} style={{ color: colors.textSecondary, fontSize: 13, marginTop: 12 }}>{savedNote}</Text>}
+        </Pressable>;
+      })}
+      {profile.group === 'П4 В' && <View style={[s.lesson, { backgroundColor: colors.cardBg }]}><Text style={{ color: colors.textMuted, fontSize: 12 }}>Время не указано</Text><Text translate={false} style={{ color: colors.textPrimary, fontSize: 16, lineHeight: 23, marginTop: 10 }}>Моделировать методы атаки и защиты информационных ресурсов</Text><Text translate={false} style={{ color: colors.textSecondary, marginTop: 8 }}>Науменко В.В.</Text></View>}
+    </ScrollView>
+    <GlassModal visible={bells} onClose={() => setBells(false)}><Text style={[s.title, { color: colors.textPrimary }]}>Расписание звонков</Text>{BELL_TIMES.map(item => <View key={item.pair} style={[s.bellRow, { borderBottomColor: colors.divider }]}><Text style={{ color: colors.textSecondary }}>{'Пара'} {item.pair}</Text><Text style={{ color: colors.textPrimary, fontSize: 18, fontVariant: ['tabular-nums'] }}>{item.start}–{item.end}</Text></View>)}</GlassModal>
+    <GlassModal visible={picker} onClose={() => { if (!saving) setPicker(false); }}><Text style={[s.title, { color: colors.textPrimary }]}>Учебная группа</Text>{CATEC_GROUPS.map(group => <Pressable key={group.id} disabled={saving} onPress={() => { setSaving(true); void Promise.resolve(onUpdateGroup(group.name)).then(() => setPicker(false)).catch(() => Alert.alert('Не удалось сохранить', 'Попробуйте ещё раз.')).finally(() => setSaving(false)); }} style={[s.bellRow, { borderBottomColor: colors.divider }]}><Text translate={false} style={{ color: colors.textPrimary, fontSize: 17 }}>{group.name}</Text>{group.name === profile.group && <Text style={{ color: colors.accent }}>✓</Text>}</Pressable>)}</GlassModal>
+    <GlassModal visible={!!selected} onClose={() => { if (!saving) setSelected(null); }}>{selected && <><Text translate={false} style={[s.title, { color: colors.textPrimary }]}>{selected.subject}</Text><Text style={{ color: colors.textSecondary, fontSize: 15, marginTop: 16 }}>{selected.timeStart}–{selected.timeEnd}</Text><Text translate={false} style={{ color: colors.textSecondary, fontSize: 15, marginTop: 8 }}>{selected.teacher}</Text><Text translate={false} style={{ color: colors.textMuted, fontSize: 14, marginTop: 8 }}>{selected.room}</Text><Text style={{ color: colors.textSecondary, marginTop: 22, marginBottom: 10 }}>Личная заметка</Text><TextInput multiline maxLength={4000} value={note} onChangeText={setNote} placeholder="Задание или заметка..." placeholderTextColor={colors.textMuted} style={[s.note, { color: colors.textPrimary, backgroundColor: colors.inputBg, borderColor: colors.inputBorder }]} /><Pressable disabled={saving} onPress={() => void saveNote()} style={[s.save, { backgroundColor: colors.accent }]}><Text style={{ color: colors.onAccent, fontSize: 16, fontWeight: '600' }}>Сохранить</Text></Pressable></>}</GlassModal>
+  </View>;
 }
-
-const DAYS = [
-  { id: 1, label: 'Пн', full: 'Дүйсенбі / Понедельник' },
-  { id: 2, label: 'Вт', full: 'Сейсенбі / Вторник' },
-  { id: 3, label: 'Ср', full: 'Сәрсенбі / Среда' },
-  { id: 4, label: 'Чт', full: 'Бейсенбі / Четверг' },
-  { id: 5, label: 'Пт', full: 'Жұма / Пятница' },
-];
-
-export const ScheduleScreen: React.FC<ScheduleScreenProps> = ({
-  profile,
-  onOpenNotifications,
-  onUpdateGroup,
-}) => {
-  const { colors, mode } = useTheme();
-
-  // Current day default
-  const todayDay = new Date().getDay();
-  const initialDay = todayDay >= 1 && todayDay <= 5 ? todayDay : 1;
-
-  const [selectedDay, setSelectedDay] = useState<number>(initialDay);
-  const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
-  const [lessonNote, setLessonNote] = useState<string>('');
-  const [savedNotes, setSavedNotes] = useState<Record<string, string>>({});
-  const [showGroupPickerModal, setShowGroupPickerModal] = useState(false);
-
-  // Filter lessons based on user's selected CATEC group
-  const dayLessons = useMemo(() => {
-    return CATEC_LESSONS
-      .filter((lesson) => {
-        return (
-          lesson.group.toLowerCase() === profile.group.toLowerCase() &&
-          lesson.dayOfWeek === selectedDay
-        );
-      })
-      .sort((a, b) => a.pairNumber - b.pairNumber);
-  }, [profile.group, selectedDay]);
-
-  const handleDaySelect = (dayId: number) => {
-    if (dayId === selectedDay) return;
-    try {
-      Haptics.selectionAsync();
-    } catch (e) {}
-    setSelectedDay(dayId);
-  };
-
-  const handleLessonClick = (lesson: Lesson) => {
-    try {
-      Haptics.selectionAsync();
-    } catch (e) {}
-    setSelectedLesson(lesson);
-    setLessonNote(savedNotes[lesson.id] || lesson.notes || '');
-  };
-
-  const handleSaveNote = () => {
-    if (!selectedLesson) return;
-    try {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (e) {}
-    setSavedNotes((prev) => ({
-      ...prev,
-      [selectedLesson.id]: lessonNote,
-    }));
-    setSelectedLesson(null);
-  };
-
-  const activeDayObj = DAYS.find((d) => d.id === selectedDay) || DAYS[0];
-
-  return (
-    <View style={[styles.container, { backgroundColor: colors.canvas }]}>
-      {/* Top Header */}
-      <GlassHeader
-        title="Расписание"
-        subtitle={`ЦАТЭК • ${profile.group}`}
-        rightBadge={profile.group}
-        onNotificationPress={onOpenNotifications}
-      />
-
-      <ScrollView
-        contentInsetAdjustmentBehavior="never"
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Quick Group Switcher Bar */}
-        <View style={styles.groupBarRow}>
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={() => setShowGroupPickerModal(true)}
-            style={[
-              styles.groupPillBtn,
-              { backgroundColor: colors.cardBg, borderColor: colors.cardBorder },
-            ]}
-          >
-            <BookOpen size={14} color={colors.accent} />
-            <Text style={[styles.groupPillText, { color: colors.textPrimary }]}>
-              Группа: {profile.group}
-            </Text>
-            <ChevronDown size={14} color={colors.textMuted} />
-          </TouchableOpacity>
-
-          <View style={styles.semesterBadge}>
-            <Text style={[styles.semesterText, { color: colors.accent }]}>
-              4 КУРС • 7 СЕМЕСТР
-            </Text>
-          </View>
-        </View>
-
-        {/* Days of Week Bar (Пн - Пт) */}
-        <View style={styles.daysContainer}>
-          {DAYS.map((day) => {
-            const isSelected = day.id === selectedDay;
-            const hasLessons = CATEC_LESSONS.some(
-              (l) => l.group.toLowerCase() === profile.group.toLowerCase() && l.dayOfWeek === day.id
-            );
-
-            return (
-              <TouchableOpacity
-                key={day.id}
-                activeOpacity={0.7}
-                onPress={() => handleDaySelect(day.id)}
-                style={[
-                  styles.dayButton,
-                  {
-                    backgroundColor: isSelected ? colors.accentLight : colors.cardBg,
-                    borderColor: isSelected ? colors.accent : colors.cardBorder,
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.dayLabel,
-                    { color: isSelected ? colors.accent : colors.textSecondary },
-                    isSelected && { fontWeight: '700' },
-                  ]}
-                >
-                  {day.label}
-                </Text>
-                {hasLessons && (
-                  <View
-                    style={[
-                      styles.dayDot,
-                      { backgroundColor: isSelected ? colors.accent : colors.textMuted },
-                    ]}
-                  />
-                )}
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        {/* Day Title Row */}
-        <View style={styles.dayTitleRow}>
-          <Text style={[styles.dayTitleText, { color: colors.textPrimary }]}>
-            {activeDayObj.full}
-          </Text>
-          <Text style={[styles.lessonsCountText, { color: colors.accent }]}>
-            {dayLessons.length} {dayLessons.length === 1 ? 'пара' : dayLessons.length < 5 ? 'пары' : 'пар'}
-          </Text>
-        </View>
-
-        {/* Lessons List */}
-        {dayLessons.length === 0 ? (
-          <GlassCard style={styles.emptyCard}>
-            <Calendar size={36} color={colors.textMuted} />
-            <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>
-              Нет пар на этот день
-            </Text>
-            <Text style={[styles.emptySub, { color: colors.textMuted }]}>
-              В этот день занятий для группы {profile.group} не запланировано.
-            </Text>
-          </GlassCard>
-        ) : (
-          <View style={styles.lessonsList}>
-            {dayLessons.map((lesson, idx) => {
-              const note = savedNotes[lesson.id] || lesson.notes;
-              const isFirst = idx === 0;
-
-              return (
-                <TouchableOpacity
-                  key={lesson.id}
-                  activeOpacity={0.85}
-                  onPress={() => handleLessonClick(lesson)}
-                >
-                  <GlassCard
-                    style={styles.lessonCard}
-                    glowColor={isFirst ? 'cyan' : 'none'}
-                  >
-                    {/* Pair & Time */}
-                    <View style={styles.lessonTopRow}>
-                      <View style={[styles.pairNumberBadge, { backgroundColor: colors.tagBg }]}>
-                        <Text style={[styles.pairNumberText, { color: colors.accent }]}>
-                          {lesson.pairNumber} ПАРА
-                        </Text>
-                      </View>
-
-                      <View style={styles.timeRow}>
-                        <Clock size={13} color={colors.textSecondary} />
-                        <Text style={[styles.timeText, { color: colors.textPrimary }]}>
-                          {lesson.timeStart} – {lesson.timeEnd}
-                        </Text>
-                      </View>
-
-                      <View style={[styles.roomBadge, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
-                        <MapPin size={11} color={colors.accent} />
-                        <Text style={[styles.roomBadgeText, { color: colors.textPrimary }]}>
-                          {lesson.room}
-                        </Text>
-                      </View>
-                    </View>
-
-                    {/* Subject Title */}
-                    <Text style={[styles.subjectText, { color: colors.textPrimary }]}>
-                      {lesson.subject}
-                    </Text>
-
-                    {/* Teacher & Building */}
-                    <View style={styles.lessonMetaRow}>
-                      <View style={styles.metaItem}>
-                        <User size={14} color={colors.textSecondary} />
-                        <Text style={[styles.metaText, { color: colors.textSecondary }]}>
-                          {lesson.teacher}
-                        </Text>
-                      </View>
-                      <Text style={[styles.buildingSub, { color: colors.textMuted }]}>
-                        • {lesson.building}
-                      </Text>
-                    </View>
-
-                    {/* Note Preview if exists */}
-                    {note && (
-                      <View style={[styles.notePreview, { backgroundColor: colors.inputBg }]}>
-                        <FileText size={12} color={colors.warning} />
-                        <Text style={[styles.notePreviewText, { color: colors.textPrimary }]} numberOfLines={1}>
-                          {note}
-                        </Text>
-                      </View>
-                    )}
-                  </GlassCard>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        )}
-      </ScrollView>
-
-      {/* Lesson Details Modal */}
-      <GlassModal
-        visible={!!selectedLesson}
-        onClose={() => setSelectedLesson(null)}
-      >
-        {selectedLesson && (
-          <View style={styles.modalBody}>
-            <View style={styles.modalHeaderRow}>
-              <View style={[styles.pairNumberBadge, { backgroundColor: colors.tagBg }]}>
-                <Text style={[styles.pairNumberText, { color: colors.accent }]}>
-                  {selectedLesson.pairNumber} ПАРА
-                </Text>
-              </View>
-              <Text style={[styles.modalTimeText, { color: colors.accent }]}>
-                {selectedLesson.timeStart} — {selectedLesson.timeEnd}
-              </Text>
-            </View>
-
-            <Text style={[styles.modalSubject, { color: colors.textPrimary }]}>
-              {selectedLesson.subject}
-            </Text>
-
-            <View style={[styles.infoCard, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
-              <View style={styles.infoRow}>
-                <MapPin size={18} color={colors.accent} />
-                <View>
-                  <Text style={[styles.infoTitle, { color: colors.textMuted }]}>Аудитория</Text>
-                  <Text style={[styles.infoValue, { color: colors.textPrimary }]}>
-                    {selectedLesson.room} ({selectedLesson.building})
-                  </Text>
-                </View>
-              </View>
-
-              <View style={[styles.infoDivider, { backgroundColor: colors.divider }]} />
-
-              <View style={styles.infoRow}>
-                <User size={18} color={colors.accent} />
-                <View>
-                  <Text style={[styles.infoTitle, { color: colors.textMuted }]}>Преподаватель</Text>
-                  <Text style={[styles.infoValue, { color: colors.textPrimary }]}>
-                    {selectedLesson.teacher}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={[styles.infoDivider, { backgroundColor: colors.divider }]} />
-
-              <View style={styles.infoRow}>
-                <BookOpen size={18} color={colors.accent} />
-                <View>
-                  <Text style={[styles.infoTitle, { color: colors.textMuted }]}>Группа</Text>
-                  <Text style={[styles.infoValue, { color: colors.textPrimary }]}>
-                    {selectedLesson.group} (4 курс, 7 семестр)
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Note Editor */}
-            <View style={styles.notesSection}>
-              <Text style={[styles.notesTitle, { color: colors.accent }]}>
-                ЛИЧНАЯ ЗАМЕТКА К ЗАНЯТИЮ
-              </Text>
-              <TextInput
-                value={lessonNote}
-                onChangeText={setLessonNote}
-                placeholder="Записать домашнее задание, тему лабы или дедлайн..."
-                placeholderTextColor={colors.textMuted}
-                multiline
-                numberOfLines={3}
-                style={[
-                  styles.notesInput,
-                  {
-                    backgroundColor: colors.inputBg,
-                    borderColor: colors.cardBorder,
-                    color: colors.textPrimary,
-                  },
-                ]}
-              />
-            </View>
-
-            <GlassButton
-              title="Сохранить заметку"
-              onPress={handleSaveNote}
-              variant="primary"
-              size="md"
-            />
-          </View>
-        )}
-      </GlassModal>
-
-      {/* Group Picker Modal */}
-      <GlassModal
-        visible={showGroupPickerModal}
-        onClose={() => setShowGroupPickerModal(false)}
-      >
-        <View style={styles.modalBody}>
-          <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>
-            Выберите группу ЦАТЭК
-          </Text>
-          <Text style={[styles.modalSub, { color: colors.textSecondary }]}>
-            Расписание автоматически покажет пары выбранной группы:
-          </Text>
-
-          <View style={styles.modalGroupsGrid}>
-            {CATEC_GROUPS.map((grp) => {
-              const isSelected = grp.name === profile.group;
-              return (
-                <TouchableOpacity
-                  key={grp.id}
-                  activeOpacity={0.7}
-                  onPress={() => {
-                    try { Haptics.selectionAsync(); } catch (e) {}
-                    onUpdateGroup(grp.name);
-                    setShowGroupPickerModal(false);
-                  }}
-                  style={[
-                    styles.modalGroupTile,
-                    {
-                      backgroundColor: isSelected ? colors.accentLight : colors.cardBg,
-                      borderColor: isSelected ? colors.accent : colors.cardBorder,
-                    },
-                  ]}
-                >
-                  <Text style={[styles.modalGroupName, { color: isSelected ? colors.accent : colors.textPrimary }]}>
-                    {grp.name}
-                  </Text>
-                  <Text style={[styles.modalGroupSpecialty, { color: colors.textMuted }]} numberOfLines={1}>
-                    {grp.specialty.split(' ')[0]}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
-      </GlassModal>
-    </View>
-  );
-};
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: 28,
-  },
-  groupBarRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    marginBottom: 10,
-  },
-  groupPillBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  groupPillText: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  semesterBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  semesterText: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  daysContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    gap: 8,
-    marginVertical: 8,
-  },
-  dayButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dayLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  dayDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    marginTop: 6,
-  },
-  dayTitleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    marginTop: 12,
-    marginBottom: 10,
-  },
-  dayTitleText: {
-    fontSize: 17,
-    fontWeight: '700',
-  },
-  lessonsCountText: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  lessonsList: {
-    paddingHorizontal: 20,
-    gap: 10,
-  },
-  lessonCard: {
-    marginBottom: 2,
-  },
-  lessonTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  pairNumberBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  pairNumberText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  timeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
-  timeText: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  roomBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  roomBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  subjectText: {
-    fontSize: 16,
-    fontWeight: '700',
-    lineHeight: 22,
-    marginBottom: 10,
-  },
-  lessonMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  metaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  metaText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  buildingSub: {
-    fontSize: 12,
-  },
-  notePreview: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    marginTop: 8,
-  },
-  notePreviewText: {
-    fontSize: 12,
-    flex: 1,
-  },
-  emptyCard: {
-    marginHorizontal: 20,
-    alignItems: 'center',
-    paddingVertical: 40,
-    marginTop: 20,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    marginTop: 12,
-  },
-  emptySub: {
-    fontSize: 13,
-    textAlign: 'center',
-    marginTop: 6,
-    paddingHorizontal: 20,
-  },
-  modalBody: {
-    paddingVertical: 10,
-  },
-  modalHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  modalTimeText: {
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  modalSubject: {
-    fontSize: 20,
-    fontWeight: '700',
-    lineHeight: 26,
-    marginBottom: 16,
-  },
-  infoCard: {
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    marginBottom: 16,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  infoTitle: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  infoValue: {
-    fontSize: 14,
-    fontWeight: '700',
-    marginTop: 2,
-  },
-  infoDivider: {
-    height: 1,
-    marginVertical: 10,
-  },
-  notesSection: {
-    marginBottom: 20,
-  },
-  notesTitle: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    marginBottom: 8,
-  },
-  notesInput: {
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 12,
-    fontSize: 14,
-    minHeight: 70,
-    textAlignVertical: 'top',
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  modalSub: {
-    fontSize: 13,
-    marginBottom: 16,
-  },
-  modalGroupsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  modalGroupTile: {
-    width: '31%',
-    paddingVertical: 10,
-    paddingHorizontal: 6,
-    borderRadius: 12,
-    borderWidth: 1,
-    alignItems: 'center',
-  },
-  modalGroupName: {
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  modalGroupSpecialty: {
-    fontSize: 10,
-    marginTop: 2,
-  },
-});
+const s = StyleSheet.create({ content: { paddingHorizontal: 20, paddingBottom: 28 }, groupRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }, groupButton: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, height: 44, borderRadius: 22 }, clock: { padding: 18, borderRadius: 22 }, clockRow: { flexDirection: 'row', alignItems: 'center', gap: 8 }, countdown: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, gap: 8 }, days: { flexDirection: 'row', gap: 8, marginVertical: 20 }, day: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 16 }, lesson: { borderRadius: 20, padding: 18, borderWidth: StyleSheet.hairlineWidth, marginBottom: 12 }, lessonTop: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 }, title: { fontSize: 22, fontWeight: '600', lineHeight: 29, marginBottom: 12 }, bellRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', minHeight: 58, borderBottomWidth: StyleSheet.hairlineWidth }, note: { minHeight: 100, padding: 14, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, fontSize: 16, textAlignVertical: 'top' }, save: { alignItems: 'center', padding: 16, borderRadius: 16, marginTop: 18 } });

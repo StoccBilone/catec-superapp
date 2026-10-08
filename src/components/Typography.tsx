@@ -4,15 +4,15 @@ import { usePreferences } from '../context/PreferencesContext';
 import { translate } from '../i18n/strings';
 
 export function Text({ children, style, translate: localize = true, ...props }: TextProps & { translate?: boolean }) {
-  const { language, textSize } = usePreferences();
+  const { language, interfaceScale } = usePreferences();
   const flat = StyleSheet.flatten(style) || {};
-  const scale = textSize === 'large' ? 1.12 : 1;
+  const scale = interfaceScale;
   return <NativeText {...props} style={[style, { fontSize: (flat.fontSize || 14) * scale, ...(flat.lineHeight ? { lineHeight: flat.lineHeight * scale } : {}) }]}>{React.Children.map(children, child => typeof child === 'string' && localize ? translate(child, language) : child)}</NativeText>;
 }
 export const TextInput = forwardRef<NativeTextInput, TextInputProps>(function TextInput(props, ref) {
-  const { language, textSize } = usePreferences();
+  const { language, interfaceScale } = usePreferences();
   const flat = StyleSheet.flatten(props.style) || {};
-  const scale = textSize === 'large' ? 1.12 : 1;
+  const scale = interfaceScale;
   return <NativeTextInput {...props} ref={ref} placeholder={props.placeholder ? translate(props.placeholder, language) : undefined} accessibilityLabel={props.accessibilityLabel ? translate(props.accessibilityLabel, language) : undefined} style={[props.style, { fontSize: (flat.fontSize || 16) * scale, ...(flat.lineHeight ? { lineHeight: flat.lineHeight * scale } : {}) }]} />;
 });
 export const Pressable = forwardRef<React.ComponentRef<typeof NativePressable>, React.ComponentProps<typeof NativePressable>>(function Pressable(props, ref) {

@@ -3,7 +3,7 @@ import { View, StyleSheet, ScrollView, Platform } from "react-native";
 import { Text, TextInput, TouchableOpacity, Alert } from "../components/Typography";
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import { Shield, ArrowRight, Check, KeyRound, Delete, UserCheck } from 'lucide-react-native';
+import { Shield, ArrowRight, Check, KeyRound, Delete } from 'lucide-react-native';
 import { UserProfile } from '../types';
 import { CATEC_GROUPS } from '../data/catecData';
 import { useTheme } from '../theme/themeContext';
@@ -22,8 +22,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   onSuccessLogin,
   onRegisterNew,
 }) => {
-  const { colors, mode } = useTheme();
-  const isDark = mode === 'dark';
+  const { colors } = useTheme();
 
   // State
   const [isRegisterMode, setIsRegisterMode] = useState(!existingProfile);
@@ -51,7 +50,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
     if (submitting || pinDigits.length >= 4) return;
     try {
       Haptics.selectionAsync();
-    } catch (e) {}
+    } catch {}
 
     const next = pinDigits + num;
     setPinDigits(next);
@@ -62,12 +61,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
       if (existingProfile && next === existingProfile.passCode) {
         try {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        } catch (e) {}
+        } catch {}
         void login(existingProfile);
       } else {
         try {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        } catch (e) {}
+        } catch {}
         setPinError(true);
         setTimeout(() => {
           setPinDigits('');
@@ -81,7 +80,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
     if (submitting || pinDigits.length === 0) return;
     try {
       Haptics.selectionAsync();
-    } catch (e) {}
+    } catch {}
     setPinDigits((prev) => prev.slice(0, -1));
     setPinError(false);
   };
@@ -94,7 +93,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
     try {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (e) {}
+    } catch {}
 
     // Generate random 4-digit ID
     const randomCode = String(Math.floor(1000 + Math.random() * 9000));
@@ -133,7 +132,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
             <View style={[styles.iconShield, { backgroundColor: colors.accentLight }]}>
               <Shield size={24} color={colors.accent} />
             </View>
-            <Text style={[styles.catecLabel, { color: colors.accent }]}>ЦАТЭК • PLATONUS</Text>
+            <Text style={[styles.catecLabel, { color: colors.accent }]}>CATEC SuperApp</Text>
           </View>
 
           <Text style={[styles.pinTitle, { color: colors.textPrimary }]}>
@@ -230,10 +229,10 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
       >
         <View style={styles.regHeader}>
           <LinearGradient
-            colors={['#0369a1', '#0284c7']}
+            colors={[colors.accent, colors.accent]}
             style={styles.logoBadge}
           >
-            <Shield size={32} color="#ffffff" />
+            <Shield size={32} color={colors.onAccent} />
           </LinearGradient>
           <Text style={[styles.regCollegeName, { color: colors.textPrimary }]}>ЦАТЭК АЛМАТЫ</Text>
           <Text style={[styles.regSubtitle, { color: colors.textSecondary }]}>
@@ -291,7 +290,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                   key={grp.id}
                   activeOpacity={0.7}
                   onPress={() => {
-                    try { Haptics.selectionAsync(); } catch (e) {}
+                    try { Haptics.selectionAsync(); } catch {}
                     setSelectedGroup(grp.name);
                   }}
                   style={[
@@ -318,7 +317,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                   </Text>
                   {isSelected && (
                     <View style={[styles.checkDot, { backgroundColor: colors.accent }]}>
-                      <Check size={10} color="#ffffff" />
+                      <Check size={10} color={colors.onAccent} />
                     </View>
                   )}
                 </TouchableOpacity>
@@ -333,7 +332,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
             onPress={handleRegisterSubmit}
             size="lg"
             variant="primary"
-            icon={<ArrowRight size={20} color="#ffffff" />}
+            icon={<ArrowRight size={20} color={colors.onAccent} />}
           />
 
           {existingProfile && (

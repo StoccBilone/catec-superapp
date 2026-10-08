@@ -13,7 +13,13 @@ export function GlassModal({ visible, onClose, children }: GlassModalProps) {
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   const [mounted, setMounted] = useState(false);
+  const [lastContent, setLastContent] = useState(children);
   const [progress] = useState(() => new Animated.Value(0));
+  useEffect(() => {
+    // Keep the closing sheet's contents and height until its exit animation ends.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (visible) setLastContent(children);
+  }, [visible, children]);
   useEffect(() => {
     const animation = Animated.timing(progress, {
       toValue: visible ? 1 : 0, duration: motionReduced ? 0 : visible ? 280 : 200,
@@ -28,10 +34,10 @@ export function GlassModal({ visible, onClose, children }: GlassModalProps) {
         <Pressable accessibilityLabel="Закрыть окно" onPress={onClose} style={StyleSheet.absoluteFill} />
       </Animated.View>
       <KeyboardAvoidingView pointerEvents="box-none" behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.position, { paddingTop: Math.max(insets.top, Platform.OS === 'web' ? 54 : 0) + 12 }]}>
-        <Animated.View style={[styles.sheet, { backgroundColor: colors.canvasElevated, paddingBottom: Math.max(insets.bottom, 12), transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [height, 0] }) }] }]}>
+        <Animated.View pointerEvents={visible ? 'auto' : 'none'} style={[styles.sheet, { backgroundColor: colors.canvasElevated, paddingBottom: Math.max(insets.bottom, 12), transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [height, 0] }) }] }]}>
           <View style={styles.grabber}><View style={[styles.handle, { backgroundColor: colors.textMuted }]} /></View>
           <Pressable accessibilityLabel="Закрыть окно" onPress={onClose} style={[styles.close, { backgroundColor: colors.inputBg }]}><X size={18} color={colors.textSecondary} /></Pressable>
-          <ScrollView bounces={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>{children}</ScrollView>
+          <ScrollView bounces={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>{visible ? children : lastContent}</ScrollView>
         </Animated.View>
       </KeyboardAvoidingView>
     </View>

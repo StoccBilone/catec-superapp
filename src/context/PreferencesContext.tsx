@@ -4,15 +4,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { setActiveLocale } from '../i18n/strings';
 
 export type Language = 'ru' | 'en' | 'kk';
-interface Preferences { language: Language; textSize: 'standard' | 'large'; reduceMotion: boolean; }
-const defaults: Preferences = { language: 'ru', textSize: 'standard', reduceMotion: false };
+interface Preferences { language: Language; textSize: 'standard' | 'large'; interfaceScale: number; reduceMotion: boolean; }
+const defaults: Preferences = { language: 'ru', textSize: 'standard', interfaceScale: 1, reduceMotion: false };
 const Context = createContext({ ...defaults, motionReduced: false, update: (_value: Partial<Preferences>) => {} });
 export function PreferencesProvider({ children }: { children: React.ReactNode }) {
   const [value, setValue] = useState(defaults);
   const [systemReduced, setSystemReduced] = useState(false);
   useEffect(() => { setActiveLocale(value.language); }, [value.language]);
   useEffect(() => {
-    void AsyncStorage.getItem('@campus_preferences').then(raw => { if (raw) setValue({ ...defaults, ...JSON.parse(raw) }); }).catch(() => {});
+    void AsyncStorage.getItem('@campus_preferences').then(raw => { if (raw) { const stored = JSON.parse(raw); setValue({ ...defaults, ...stored, interfaceScale: Math.min(1.25, Math.max(0.9, stored.interfaceScale ?? (stored.textSize === 'large' ? 1.12 : 1))) }); } }).catch(() => {});
     void AccessibilityInfo.isReduceMotionEnabled().then(setSystemReduced);
     const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setSystemReduced);
     return () => subscription.remove();

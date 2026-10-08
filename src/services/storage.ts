@@ -25,6 +25,10 @@ export const StorageService = {
     return null;
   },
 
+  async saveLocalProfile(profile: UserProfile): Promise<void> {
+    await AsyncStorage.setItem(KEYS.USER_PROFILE, JSON.stringify(profile));
+  },
+
   async saveUserProfile(profile: UserProfile): Promise<void> {
     try {
       const synced = await syncCloudProfile(profile);
@@ -41,7 +45,7 @@ export const StorageService = {
     try {
       const val = await AsyncStorage.getItem(KEYS.IS_LOGGED_IN);
       return val === 'true';
-    } catch (e) {
+    } catch {
       return false;
     }
   },
@@ -49,14 +53,14 @@ export const StorageService = {
   async setLoggedIn(status: boolean): Promise<void> {
     try {
       await AsyncStorage.setItem(KEYS.IS_LOGGED_IN, status ? 'true' : 'false');
-    } catch (e) {}
+    } catch {}
   },
 
   async resetProfile(): Promise<void> {
     try {
       await AsyncStorage.removeItem(KEYS.USER_PROFILE);
       await AsyncStorage.removeItem(KEYS.IS_LOGGED_IN);
-    } catch (e) {}
+    } catch {}
   },
 
   // --- NEWS & POSTS ---
@@ -70,7 +74,7 @@ export const StorageService = {
       const customPostsRaw = await AsyncStorage.getItem(KEYS.USER_POSTS);
       const customPosts: NewsItem[] = customPostsRaw ? JSON.parse(customPostsRaw) : [];
       return [...customPosts, ...CATEC_NEWS];
-    } catch (e) {
+    } catch {
       return CATEC_NEWS;
     }
   },
@@ -102,20 +106,8 @@ export const StorageService = {
         const parsed = JSON.parse(allRaw);
         if (parsed[groupId]) return parsed[groupId];
       }
-    } catch (e) {}
-    // Default initial mock message for the group
-    if (groupId.startsWith('room:')) return [];
-    return [
-      {
-        id: `init-${groupId}-1`,
-        senderId: 'curator',
-        senderName: 'Куратор группы',
-        senderRole: 'teacher',
-        avatarColor: '#0284c7',
-        text: `Уважаемые студенты группы ${groupId}! Добро пожаловать в официальную цифровую систему колледжа ЦАТЭК. Проверьте актуальное расписание на 7 семестр.`,
-        createdAt: '11:25',
-      },
-    ];
+    } catch {}
+    return [];
   },
 
   async addChatMessage(groupId: string, message: ChatMessage): Promise<ChatMessage[]> {
@@ -128,7 +120,7 @@ export const StorageService = {
       chatsMap[groupId] = updatedList;
       await AsyncStorage.setItem(KEYS.CHAT_MESSAGES, JSON.stringify(chatsMap));
       return updatedList;
-    } catch (e) {
+    } catch {
       return [];
     }
   },
@@ -138,7 +130,7 @@ export const StorageService = {
     try {
       const data = await AsyncStorage.getItem(KEYS.SAVED_NOTES);
       if (data) return JSON.parse(data);
-    } catch (e) {}
+    } catch {}
     return {};
   },
 
@@ -147,7 +139,7 @@ export const StorageService = {
       const existing = await this.getLessonNotes();
       existing[lessonId] = note;
       await AsyncStorage.setItem(KEYS.SAVED_NOTES, JSON.stringify(existing));
-    } catch (e) {}
+    } catch (error) { throw error; }
   },
 
   // --- SUPABASE CONFIG ---
@@ -155,13 +147,13 @@ export const StorageService = {
     try {
       const data = await AsyncStorage.getItem('@catec_supabase_config');
       if (data) return JSON.parse(data);
-    } catch (e) {}
+    } catch {}
     return { url: '', anonKey: '', isEnabled: false };
   },
 
   async saveSupabaseConfig(config: { url: string; anonKey: string; isEnabled: boolean }): Promise<void> {
     try {
       await AsyncStorage.setItem('@catec_supabase_config', JSON.stringify(config));
-    } catch (e) {}
+    } catch {}
   },
 };

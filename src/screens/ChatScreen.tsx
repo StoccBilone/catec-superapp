@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { AppState, View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from "react-native";
+import { AppState, View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, Keyboard } from "react-native";
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text, TextInput, TouchableOpacity, Alert, Pressable } from "../components/Typography";
 import * as Haptics from 'expo-haptics';
 import {
@@ -9,11 +10,8 @@ import {
   Shield,
   Info,
   ChevronLeft,
-  Mic,
-  Video,
   X,
 } from 'lucide-react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChatMessage, Material, UserProfile } from '../types';
 import { CATEC_GROUPS } from '../data/catecData';
 import { StorageService } from '../services/storage';
@@ -21,6 +19,8 @@ import { useTheme } from '../theme/themeContext';
 import { GlassModal } from '../components/GlassModal';
 import { MaterialView } from '../components/MaterialView';
 import { pickMaterial } from '../services/materials';
+import { RecordButton } from '../components/RecordButton';
+import { GlassTool } from '../components/GlassTool';
 import { ChatRecorder, RecorderHandle } from '../components/ChatRecorder';
 
 interface ChatScreenProps {
@@ -39,19 +39,23 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
 }) => {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  useEffect(() => {
+    const show = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', () => setKeyboardVisible(true));
+    const hide = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => setKeyboardVisible(false));
+    return () => { show.remove(); hide.remove(); };
+  }, []);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [showInfoModal, setShowInfoModal] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
   const nearBottom = useRef(true);
   const recorder = useRef<RecorderHandle>(null);
-  const heldLong = useRef(false);
+  const [recordingActive, setRecordingActive] = useState(false);
   const [recordMode, setRecordMode] = useState<'voice' | 'videoNote'>('voice');
   const [attachments, setAttachments] = useState<Material[]>([]);
   const [showAttachmentPicker, setShowAttachmentPicker] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [headerHeight, setHeaderHeight] = useState(64);
-  const [subheaderHeight, setSubheaderHeight] = useState(0);
   const attach = async (kind: 'media' | 'document') => {
     if (busy || attachments.length >= 5) return;
     setShowAttachmentPicker(false); setBusy(true);
@@ -87,7 +91,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
 
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } catch (e) {}
+    } catch {}
 
     const now = new Date();
     const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(
@@ -119,15 +123,15 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.canvas }]}>
-      <View onLayout={event => setHeaderHeight(event.nativeEvent.layout.height)} style={[styles.conversationHeader, { borderBottomColor: colors.divider }]}>
+    <KeyboardAvoidingView style={[styles.container, { backgroundColor: colors.canvas }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={insets.top}>
+      <View style={[styles.conversationHeader, { borderBottomColor: colors.divider }]}>
         <TouchableOpacity onPress={onBack} accessibilityLabel="Назад к чатам" style={styles.backButton}><ChevronLeft color={colors.accent} size={28} /></TouchableOpacity>
         <View style={{ flex: 1 }}><Text numberOfLines={1} style={[styles.conversationTitle, { color: colors.textPrimary }]}>{title || profile.group}</Text>{groupMeta && <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 3 }}>{groupMeta.studentCount} студентов</Text>}</View>
         <TouchableOpacity onPress={() => setShowInfoModal(true)} style={styles.backButton} accessibilityLabel="О беседе"><Info color={colors.textSecondary} size={22} /></TouchableOpacity>
       </View>
 
       {/* Subheader: Curator Info Bar */}
-      {groupMeta && <View onLayout={event => setSubheaderHeight(event.nativeEvent.layout.height)} style={[styles.groupSubHeader, { borderBottomColor: colors.divider }]}>
+      {groupMeta && <View style={[styles.groupSubHeader, { borderBottomColor: colors.divider }]}>
         <View style={styles.subLeft}>
           <Users size={16} color={colors.accent} />
           <Text style={[styles.curatorText, { color: colors.textSecondary }]}>
@@ -145,7 +149,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
       </View>}
 
       {/* Message Feed */}
-      <KeyboardAvoidingView style={{ flex: 1, overflow: 'hidden' }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={insets.top + headerHeight + (groupMeta ? subheaderHeight : 0)}>
+
       <ScrollView
         style={{ flex: 1, overflow: 'hidden' }}
         contentInsetAdjustmentBehavior="never"
@@ -161,6 +165,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
       >
         {messages.map((msg) => {
           const isOwn = msg.isOwn || msg.senderId === profile.id;
+          const bareMedia = !msg.text.trim() && !!msg.attachments?.length && msg.attachments.every(item => item.type === 'voice' || item.type === 'videoNote');
           const isTeacher = msg.senderRole === 'teacher';
 
           return (
@@ -183,7 +188,8 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
                           borderColor: colors.cardBorder,
                         },
                       ],
-                  isTeacher && !isOwn && { borderLeftColor: colors.accent, borderLeftWidth: 3 },
+                  isTeacher && !isOwn && !bareMedia && { borderLeftColor: colors.accent, borderLeftWidth: 3 },
+                  bareMedia && { backgroundColor: 'transparent', borderWidth: 0, paddingHorizontal: 0, paddingVertical: 0 },
                 ]}
               >
                 {!isOwn && (
@@ -208,7 +214,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
                 {msg.text ? <Text translate={false}
                   style={[
                     styles.messageText,
-                    { color: isOwn ? '#ffffff' : colors.textPrimary },
+                    { color: isOwn ? colors.onAccent : colors.textPrimary },
                   ]}
                 >
                   {msg.text}
@@ -216,7 +222,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
 
                 {/* Attachments if any */}
                 {msg.attachments && msg.attachments.length > 0 && (
-                  <View style={styles.attachmentsList}>
+                  <View style={[styles.attachmentsList, bareMedia && { marginTop: 0 }]}>
                     {msg.attachments.map((att, i) => <MaterialView key={att.id || i} item={att} />)}
                   </View>
                 )}
@@ -224,7 +230,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
                 <Text
                   style={[
                     styles.timeText,
-                    { color: isOwn ? 'rgba(255,255,255,0.7)' : colors.textMuted },
+                    { color: bareMedia || !isOwn ? colors.textMuted : colors.onAccent },
                   ]}
                 >
                   {msg.createdAt}
@@ -237,18 +243,11 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
 
       {/* Input Bar */}
         {attachments.length > 0 && <ScrollView horizontal style={{ maxHeight: 52 }} keyboardShouldPersistTaps="handled">{attachments.map(item => <Pressable key={item.id} onPress={() => setAttachments(current => current.filter(value => value.id !== item.id))} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 14 }}><Text translate={false} numberOfLines={1} style={{ color: colors.accent, maxWidth: 180 }}>{item.title}</Text><X size={16} color={colors.textMuted} /></Pressable>)}</ScrollView>}
-        <View style={[styles.inputBar, { backgroundColor: colors.canvasElevated, borderTopColor: colors.divider }]}>
-          <TouchableOpacity
-            activeOpacity={0.7}
-            accessibilityLabel="Добавить вложение"
-            onPress={() => setShowAttachmentPicker(true)}
-            style={[styles.attachBtn, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder }]}
-          >
-            <Paperclip size={20} color={colors.textSecondary} />
-          </TouchableOpacity>
+        <View style={[styles.inputBar, { backgroundColor: colors.canvasElevated, borderTopColor: colors.divider, paddingBottom: keyboardVisible ? 8 : Math.max(insets.bottom, 8) }]}>
+          <GlassTool label="Добавить вложение" onPress={() => setShowAttachmentPicker(true)}><Paperclip size={20} color={colors.textPrimary} /></GlassTool>
 
           <TextInput
-            maxLength={10000} value={inputText}
+            editable={!recordingActive} maxLength={10000} value={inputText}
             onChangeText={setInputText}
             placeholder="Сообщение..."
             placeholderTextColor={colors.textMuted}
@@ -275,10 +274,9 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
               },
             ]}
           >
-            <Send size={18} color="#ffffff" />
-          </TouchableOpacity> : <Pressable accessibilityLabel={recordMode === 'voice' ? 'Голосовое сообщение: удерживайте для записи, нажмите для видео' : 'Видеосообщение: удерживайте для записи, нажмите для голосового'} onPressIn={() => { heldLong.current = false; }} onLongPress={() => { heldLong.current = true; recorder.current?.start(recordMode); }} delayLongPress={280} onPressOut={() => { if (heldLong.current) recorder.current?.release(); }} onPress={() => { if (!heldLong.current) setRecordMode(recordMode === 'voice' ? 'videoNote' : 'voice'); }} style={[styles.sendBtn, { backgroundColor: colors.accentLight }]}>{recordMode === 'voice' ? <Mic color={colors.accent} size={23} /> : <Video color={colors.accent} size={23} />}</Pressable>}
+            <Send size={18} color={colors.onAccent} />
+          </TouchableOpacity> : <RecordButton mode={recordMode} disabled={busy || recordingActive} onToggle={() => setRecordMode(recordMode === 'voice' ? 'videoNote' : 'voice')} onStart={() => recorder.current?.start(recordMode)} onMove={distance => recorder.current?.move(distance)} onRelease={() => recorder.current?.release()} onCancel={() => recorder.current?.cancel()} />}
         </View>
-      </KeyboardAvoidingView>
 
       {/* Group Info Modal */}
       <GlassModal
@@ -318,13 +316,13 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
         </View>
       </GlassModal>
       <GlassModal visible={showAttachmentPicker} onClose={() => setShowAttachmentPicker(false)}><Text style={{ color: colors.textPrimary, fontSize: 22, fontWeight: '700', marginBottom: 18 }}>Добавить вложение</Text><Pressable onPress={() => void attach('media')} style={{ paddingVertical: 16 }}><Text style={{ color: colors.accent, fontSize: 17 }}>Фото / видео</Text></Pressable><Pressable onPress={() => void attach('document')} style={{ paddingVertical: 16 }}><Text style={{ color: colors.accent, fontSize: 17 }}>Документ</Text></Pressable></GlassModal>
-      <ChatRecorder ref={recorder} onSend={item => send(item)} />
-    </View>
+      <ChatRecorder ref={recorder} onSend={item => send(item)} onActiveChange={setRecordingActive} />
+    </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
-  conversationHeader: { flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 10, borderBottomWidth: StyleSheet.hairlineWidth },
+  conversationHeader: { flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 8, height: 72, paddingHorizontal: 10, borderBottomWidth: StyleSheet.hairlineWidth },
   conversationTitle: { fontSize: 18, fontWeight: '700' },
   backButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   container: {
@@ -439,16 +437,16 @@ const styles = StyleSheet.create({
   inputBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    gap: 8,
     marginBottom: 0,
   },
   attachBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
@@ -459,13 +457,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: 14,
     paddingVertical: 8,
-    fontSize: 14,
-    maxHeight: 90,
+    fontSize: 16,
+    minHeight: 44,
+    maxHeight: 110,
   },
   sendBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },
