@@ -20,6 +20,7 @@ import { GlassModal } from '../components/GlassModal';
 import { MaterialView } from '../components/MaterialView';
 import { pickMaterial } from '../services/materials';
 import { RecordButton } from '../components/RecordButton';
+import { GlassSurface } from '../components/GlassSurface';
 import { GlassTool } from '../components/GlassTool';
 import { ChatRecorder, RecorderHandle } from '../components/ChatRecorder';
 
@@ -47,6 +48,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
   }, []);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
+  const [inputHeight, setInputHeight] = useState(44);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
   const nearBottom = useRef(true);
@@ -56,12 +58,16 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
   const [attachments, setAttachments] = useState<Material[]>([]);
   const [showAttachmentPicker, setShowAttachmentPicker] = useState(false);
   const [busy, setBusy] = useState(false);
+  const sendingRef = useRef(false);
+  const messageVersion = useRef(0);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const attach = async (kind: 'media' | 'document') => {
-    if (busy || attachments.length >= 5) return;
+    if (busy || sendingRef.current || recordingActive || attachments.length >= 5) return;
     setShowAttachmentPicker(false); setBusy(true);
-    try { await new Promise(resolve => setTimeout(resolve, 240)); const item = await pickMaterial(kind); if (item) setAttachments(current => [...current, item]); }
+    try { await new Promise(resolve => setTimeout(resolve, 240)); const item = await pickMaterial(kind); if (item && mounted.current) setAttachments(current => [...current, item]); }
     catch (error) { Alert.alert('Не удалось добавить вложение', error instanceof Error ? error.message : 'Попробуйте ещё раз.'); }
-    finally { setBusy(false); }
+    finally { if (mounted.current) setBusy(false); }
   };
 
   const groupMeta = CATEC_GROUPS.find(
@@ -72,9 +78,10 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
     let active = true;
     let loading = false;
     const load = async () => {
-      if (loading || AppState.currentState !== 'active') return;
+      if (loading || (Platform.OS !== 'web' && AppState.currentState !== 'active')) return;
       loading = true;
-      try { const list = await StorageService.getChatMessages(profile.group); if (active) setMessages(list); }
+      const version = messageVersion.current;
+      try { const list = await StorageService.getChatMessages(profile.group); if (active && version === messageVersion.current) setMessages(list); }
       catch { /* Keep the last messages while a connection recovers. */ }
       finally { loading = false; }
     };
@@ -84,13 +91,13 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
   }, [profile.group]);
 
   const send = async (recorded?: Material) => {
-    if (busy) throw new Error('Дождитесь завершения отправки.');
+    if (busy || sendingRef.current) throw new Error('Дождитесь завершения отправки.');
     if (!recorded && !inputText.trim() && !attachments.length) return;
-    setBusy(true);
+    sendingRef.current = true; messageVersion.current += 1; setBusy(true);
     try {
 
     try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     } catch {}
 
     const now = new Date();
@@ -104,26 +111,26 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
       senderName: profile.fullName,
       senderRole: 'student',
       avatarColor: colors.accent,
-      text: inputText.trim(),
+      text: recorded ? '' : inputText.trim(),
       createdAt: timeStr,
       isOwn: true,
       attachments: recorded ? [recorded] : attachments,
     };
 
     const updated = await StorageService.addChatMessage(profile.group, newMsg);
+    if (!mounted.current) return;
     nearBottom.current = true;
     setMessages(updated);
-    setInputText('');
-    setAttachments([]);
+    if (!recorded) { setInputText(''); setAttachments([]); }
 
     setTimeout(() => {
       scrollViewRef.current?.scrollToEnd({ animated: true });
     }, 100);
-    } finally { setBusy(false); }
+    } finally { sendingRef.current = false; if (mounted.current) setBusy(false); }
   };
 
   return (
-    <KeyboardAvoidingView style={[styles.container, { backgroundColor: colors.canvas }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={insets.top}>
+    <KeyboardAvoidingView style={[styles.container, { backgroundColor: colors.canvas }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={0}>
       <View style={[styles.conversationHeader, { borderBottomColor: colors.divider }]}>
         <GlassTool label="Назад к чатам" onPress={() => onBack?.()} disabled={!onBack}><ChevronLeft color={colors.textPrimary} size={22} /></GlassTool>
         <View style={{ flex: 1 }}><Text numberOfLines={1} style={[styles.conversationTitle, { color: colors.textPrimary }]}>{title || profile.group}</Text>{groupMeta && <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 3 }}>{groupMeta.studentCount} студентов</Text>}</View>
@@ -242,40 +249,30 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
       </ScrollView>
 
       {/* Input Bar */}
-        {attachments.length > 0 && <ScrollView horizontal style={{ maxHeight: 52 }} keyboardShouldPersistTaps="handled">{attachments.map(item => <Pressable key={item.id} onPress={() => setAttachments(current => current.filter(value => value.id !== item.id))} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 14 }}><Text translate={false} numberOfLines={1} style={{ color: colors.accent, maxWidth: 180 }}>{item.title}</Text><X size={16} color={colors.textMuted} /></Pressable>)}</ScrollView>}
-        <View style={[styles.inputBar, { backgroundColor: colors.canvasElevated, borderTopColor: colors.divider, paddingBottom: keyboardVisible ? 8 : Math.max(insets.bottom, 8) }]}>
-          <GlassTool label="Добавить вложение" onPress={() => setShowAttachmentPicker(true)}><Paperclip size={20} color={colors.textPrimary} /></GlassTool>
+        {attachments.length > 0 && <ScrollView horizontal style={{ maxHeight: 52 }} keyboardShouldPersistTaps="handled">{attachments.map(item => <Pressable disabled={busy || recordingActive} key={item.id} onPress={() => setAttachments(current => current.filter(value => value.id !== item.id))} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 14 }}><Text translate={false} numberOfLines={1} style={{ color: colors.accent, maxWidth: 180 }}>{item.title}</Text><X size={16} color={colors.textMuted} /></Pressable>)}</ScrollView>}
+        <View style={[styles.inputBar, { paddingBottom: keyboardVisible ? 4 : Math.max(insets.bottom, 8) }]}>
+          <GlassTool disabled={busy || recordingActive} label="Добавить вложение" onPress={() => setShowAttachmentPicker(true)}><Paperclip size={20} color={colors.textPrimary} /></GlassTool>
 
+          <GlassSurface interactive={false} style={{ flex: 1, borderRadius: 22 }}>
           <TextInput
-            editable={!recordingActive} maxLength={10000} value={inputText}
+            editable={!recordingActive && !busy} maxLength={10000} value={inputText}
             onChangeText={setInputText}
             placeholder="Сообщение..."
             placeholderTextColor={colors.textMuted}
-            multiline
+            multiline numberOfLines={1}
+            onContentSizeChange={event => setInputHeight(Math.max(44, Math.min(110, event.nativeEvent.contentSize.height)))}
             style={[
               styles.chatInput,
               {
-                backgroundColor: colors.inputBg,
-                borderColor: colors.inputBorder,
+                backgroundColor: 'transparent',
+                height: inputHeight,
                 color: colors.textPrimary,
               },
             ]}
           />
 
-          {(inputText.trim() || attachments.length) ? <TouchableOpacity
-            activeOpacity={0.7}
-            onPress={() => void send().catch(() => Alert.alert('Не удалось отправить', 'Попробуйте ещё раз.'))}
-            disabled={busy}
-            accessibilityLabel="Отправить сообщение"
-            style={[
-              styles.sendBtn,
-              {
-                backgroundColor: colors.accent,
-              },
-            ]}
-          >
-            <Send size={18} color={colors.onAccent} />
-          </TouchableOpacity> : <RecordButton mode={recordMode} disabled={busy || recordingActive} onToggle={() => setRecordMode(recordMode === 'voice' ? 'videoNote' : 'voice')} onStart={() => recorder.current?.start(recordMode)} onMove={distance => recorder.current?.move(distance)} onRelease={() => recorder.current?.release()} onCancel={() => recorder.current?.cancel()} />}
+          </GlassSurface>
+          {(inputText.trim() || attachments.length) ? <GlassTool label="Отправить сообщение" disabled={busy || recordingActive} onPress={() => void send().catch(() => Alert.alert('Не удалось отправить', 'Попробуйте ещё раз.'))}><Send size={20} color={colors.textPrimary} /></GlassTool> : <RecordButton mode={recordMode} disabled={busy || recordingActive} onToggle={() => setRecordMode(recordMode === 'voice' ? 'videoNote' : 'voice')} onStart={() => recorder.current?.start(recordMode)} onMove={distance => recorder.current?.move(distance)} onRelease={() => recorder.current?.release()} onCancel={() => recorder.current?.cancel()} />}
         </View>
 
       {/* Group Info Modal */}
@@ -439,7 +436,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderTopWidth: StyleSheet.hairlineWidth,
     gap: 8,
     marginBottom: 0,
   },
@@ -452,9 +448,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   chatInput: {
-    flex: 1,
-    borderRadius: 20,
-    borderWidth: 1,
+    borderRadius: 22,
     paddingHorizontal: 14,
     paddingVertical: 8,
     fontSize: 16,

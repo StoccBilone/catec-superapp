@@ -77,6 +77,7 @@ export interface Material {
   mimeType?: string;
   size?: string;
   duration?: number;
+  waveform?: number[];
   storagePath?: string;
 }
 

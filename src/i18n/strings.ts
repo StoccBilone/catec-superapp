@@ -1,6 +1,10 @@
 export type Locale = 'ru' | 'en' | 'kk';
 // UI copy only; student names, authored posts and curriculum data keep their original language.
 export const strings: Record<string, [string, string]> = {
+  'Звуковая волна': ['Audio waveform', 'Дыбыс толқыны'],
+  'Скорость воспроизведения': ['Playback speed', 'Ойнату жылдамдығы'],
+  'Отправить запись': ['Send recording', 'Жазбаны жіберу'],
+  '← Отмена': ['← Cancel', '← Бас тарту'],
   'Двигайте ракетку пальцем. Попадайте мячом в островок.': ['Move the paddle with your finger. Hit the island with the ball.', 'Ракетканы саусақпен жылжытыңыз. Допты аралға тигізіңіз.'],
   'Мяч упущен. Попробуем ещё раз?': ['Missed the ball. Try again?', 'Допты өткізіп алдыңыз. Қайталап көрейік пе?'],
   'Продолжим с того же места.': ['Continue where you left off.', 'Сол жерден жалғастырамыз.'],
