@@ -28,7 +28,8 @@ function Navigation() {
         <Stack.Protected guard={authenticated}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="conversation" />
-          <Stack.Screen name="games/2048" />
+          <Stack.Screen name="games/2048" options={{ gestureEnabled: false, fullScreenGestureEnabled: false }} />
+          <Stack.Screen name="games/island" options={{ gestureEnabled: false, fullScreenGestureEnabled: false, statusBarHidden: true }} />
         </Stack.Protected>
         <Stack.Protected guard={!authenticated}>
           <Stack.Screen name="auth" />

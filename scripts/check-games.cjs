@@ -107,4 +107,64 @@ async function checkStorage() {
   await save2048('one', last);
   assert.equal((await load2048('one')).game.moves, 2, 'a failed write does not poison later saves');
 }
-checkStorage().then(() => console.log('Games OK: 2048 rules, four directions, blocked moves, win/loss, 1000 state transitions, restore and ordered per-profile saves.')).catch(error => { console.error(error); process.exitCode = 1; });
+const island = load('src/games/island/engine.ts');
+const { targetForDevice, createArena, createIslandGame, stepIsland, movePaddle, BALL_RADIUS } = island;
+assert.equal(targetForDevice(393, 59, 'iPhone15,2', 'iPhone 14 Pro', true).kind, 'island');
+assert.equal(targetForDevice(390, 47, 'iPhone14,7', 'iPhone 14', true).kind, 'notch');
+assert.equal(targetForDevice(390, 47, 'iPhone17,5', 'iPhone 16e', true).kind, 'notch');
+assert.equal(targetForDevice(393, 59, null, null, false).kind, 'capsule');
+assert.equal(targetForDevice(375, 20, null, 'iPhone SE', true).kind, 'capsule');
+assert.equal(targetForDevice(402, 62, null, 'Unknown iPhone', true).kind, 'island');
+const target = targetForDevice(393, 59, 'iPhone15,2', 'iPhone 14 Pro', true);
+const arena = createArena(393, 852, 34, target);
+const originalIsland = createIslandGame(arena);
+assert.equal(movePaddle(originalIsland, arena, -999).paddleX, arena.paddleWidth / 2 + 12);
+assert.equal(movePaddle(originalIsland, arena, 9999).paddleX, arena.width - arena.paddleWidth / 2 - 12);
+let contactGame = { ...originalIsland, x: arena.width / 2, y: target.y + target.height + BALL_RADIUS + 1, vx: 0, vy: -340 };
+let hit = stepIsland(contactGame, arena, 1 / 60);
+assert.equal(hit.hit, true);
+assert.equal(hit.game.score, 1);
+assert.ok(hit.game.vy > 0);
+assert.equal(contactGame.score, 0, 'physics does not mutate the previous frame');
+assert.equal(stepIsland(hit.game, arena, 1 / 60).game.score, 1, 'one contact scores once');
+const fromAbove = stepIsland({ ...contactGame, y: target.y - BALL_RADIUS - 1, vy: 340 }, arena, 1 / 60);
+assert.equal(fromAbove.hit, true, 'the ball cannot pass through the target from above');
+assert.ok(fromAbove.game.vy > 0 && fromAbove.game.y > target.y + target.height, 'the target returns the ball into the playable field');
+const corner = stepIsland({ ...contactGame, x: target.x - 5, y: target.y + target.height + 5, vy: -1 }, arena, 1 / 120);
+assert.equal(corner.hit, false, 'the pill corners use curved collision geometry');
+let paddleBounce = stepIsland({ ...originalIsland, x: originalIsland.paddleX + arena.paddleWidth * 0.25, y: arena.paddleY - BALL_RADIUS - 1, vx: 0, vy: 600 }, arena, 1 / 30);
+assert.equal(paddleBounce.paddleHit, true);
+assert.ok(paddleBounce.game.vy < 0 && paddleBounce.game.vx > 0, 'offset on paddle controls the rebound angle');
+assert.equal(paddleBounce.game.score, 0);
+assert.equal(stepIsland({ ...originalIsland, x: 8, y: 300, vx: -340, vy: -200 }, arena, 1 / 60).game.vx > 0, true);
+assert.equal(stepIsland({ ...originalIsland, x: 20, y: 8, vx: 0, vy: -340 }, arena, 1 / 60).game.vy > 0, true, 'missing the island bounces off the top without scoring');
+assert.equal(stepIsland({ ...originalIsland, x: 20, y: arena.height + BALL_RADIUS, vy: 340 }, arena, 1 / 60).game.ended, true);
+const ended = { ...originalIsland, ended: true };
+assert.equal(stepIsland(ended, arena, 1).game, ended);
+assert.equal(stepIsland(originalIsland, arena, NaN).game, originalIsland);
+assert.ok(Math.abs(stepIsland({ ...originalIsland, y: 500 }, arena, 20).game.y - 500) < 20, 'a suspended app never fast-forwards through the arena');
+const notchArena = createArena(390, 844, 34, targetForDevice(390, 47, 'iPhone14,7', 'iPhone 14', true));
+assert.equal(stepIsland({ ...createIslandGame(notchArena), x: 195, y: 40, vx: 0, vy: -340 }, notchArena, 1 / 60).hit, true);
+let rally = createIslandGame(arena);
+for (let i = 0; i < 5000 && !rally.ended; i++) {
+  const aim = Math.atan2(arena.width / 2 - rally.x, arena.paddleY - target.y - target.height);
+  const paddleOffset = aim / (Math.PI * 0.34) * arena.paddleWidth / 2;
+  rally = movePaddle(rally, arena, rally.x - paddleOffset);
+  rally = stepIsland(rally, arena, 1 / 120).game;
+  assert.ok(Number.isFinite(rally.x) && Number.isFinite(rally.y));
+  assert.ok(rally.x >= BALL_RADIUS && rally.x <= arena.width - BALL_RADIUS);
+}
+assert.ok(rally.score >= 5, 'a long rally stays playable');
+assert.equal(rally.ended, false);
+
+async function checkIslandStorage() {
+  const values = new Map();
+  const fake = { getItem: async key => values.get(key) || null, setItem: async (key, value) => { await new Promise(resolve => setTimeout(resolve, value === '1' ? 15 : 1)); values.set(key, value); } };
+  const storage = load('src/games/island/storage.ts', { '@react-native-async-storage/async-storage': { __esModule: true, default: fake } });
+  const a = storage.saveIslandBest('one', 1);
+  const b = storage.saveIslandBest('one', 9);
+  assert.equal(await storage.loadIslandBest('one'), 9);
+  await Promise.all([a, b]);
+  assert.equal(await storage.loadIslandBest('two'), 0, 'island records are private to each profile');
+}
+Promise.all([checkStorage(), checkIslandStorage()]).then(() => console.log('Games OK: 2048 rules and saves; Island model selection, curved collisions, score, paddle angles, walls, loss, long rally and records.')).catch(error => { console.error(error); process.exitCode = 1; });
