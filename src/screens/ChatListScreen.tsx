@@ -2,6 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, View } from "react-native";
 import { Alert, Text, TextInput, TouchableOpacity } from "../components/Typography";
 import { router, useFocusEffect } from 'expo-router';
+import { GlassTool } from '../components/GlassTool';
 import { MessageCircle, Plus, Search, Users } from 'lucide-react-native';
 import { UserProfile } from '../types';
 import { useTheme } from '../theme/themeContext';
@@ -70,7 +71,7 @@ export function ChatListScreen({ profile }: { profile: UserProfile }) {
   };
   const filtered = rooms.filter(room => room.title.toLocaleLowerCase().includes(query.toLocaleLowerCase()));
   return <View style={[s.page, { backgroundColor: colors.canvas }]}>
-    <View style={s.header}><Text style={[s.heading, { color: colors.textPrimary }]}>Сообщения</Text><TouchableOpacity accessibilityLabel="Создать чат или беседу" onPress={() => setVisible(true)} style={[s.plus, { backgroundColor: colors.accentLight }]}><Plus size={25} color={colors.accent} /></TouchableOpacity></View>
+    <View style={s.header}><Text style={[s.heading, { color: colors.textPrimary }]}>Сообщения</Text><GlassTool label="Создать чат или беседу" onPress={() => setVisible(true)}><Plus size={23} color={colors.textPrimary} /></GlassTool></View>
     <View style={[s.search, { backgroundColor: colors.inputBg }]}><Search size={19} color={colors.textMuted} /><TextInput value={query} onChangeText={setQuery} placeholder="Поиск" placeholderTextColor={colors.textMuted} style={[s.input, { color: colors.textPrimary }]} /></View>
     {rooms.length === 0 ? <View style={s.empty}><View style={[s.emptyIcon, { backgroundColor: colors.accentLight }]}><MessageCircle size={36} color={colors.accent} /></View><Text style={[s.emptyTitle, { color: colors.textPrimary }]}>Здесь будут ваши чаты</Text><Text style={[s.emptyText, { color: colors.textSecondary }]}>Создайте личный чат или беседу для учебной группы.</Text><TouchableOpacity onPress={() => setVisible(true)} style={[s.button, { backgroundColor: colors.accent }]}><Plus color={colors.onAccent} size={19} /><Text style={[s.buttonText, { color: colors.onAccent }]}>Создать чат</Text></TouchableOpacity></View> : <ScrollView style={s.list} contentInsetAdjustmentBehavior="never" contentContainerStyle={{ paddingBottom: 20 }}>
       {filtered.map(room => <TouchableOpacity key={room.id} onPress={() => open(room)} style={[s.row, { borderBottomColor: colors.divider }]}><View style={[s.avatar, { backgroundColor: colors.accentLight }]}>{room.kind === 'group' ? <Users size={24} color={colors.accent} /> : <Text style={{ color: colors.accent, fontWeight: '700', fontSize: 19 }}>{room.title.slice(0, 1).toUpperCase()}</Text>}</View><View style={{ flex: 1 }}><Text translate={false} numberOfLines={1} style={[s.roomTitle, { color: colors.textPrimary }]}>{room.title}</Text><Text numberOfLines={2} style={[s.preview, { color: colors.textSecondary }]}>{previews[room.id]}</Text></View></TouchableOpacity>)}

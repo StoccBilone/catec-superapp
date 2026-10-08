@@ -63,10 +63,10 @@ export function createMazeRenderer(gl: ExpoWebGLRenderingContext, maze: Maze, da
     for (let z = 0; z < maze.size; z++) for (let x = 0; x < maze.size; x++) if (maze.cells[z][x]) box(wallData, x-half, 0, z-half, 1, 0.55, 1);
     const floor = mesh(floorData), walls = mesh(wallData), ball = mesh(sphere()), goal = mesh(disk(0.34)), shadow = mesh(disk(0.27));
     // Orthographic projection, with a real 3D camera above and in front of the board.
-    const view = [1,0,0,0, 0,0.6,0.8,0, 0,-0.8,0.6,0, 0,0,-15,1];
+    const view = [1,0,0,0, 0,0.6,0.8,0, 0,-0.8,0.6,0, 0,0,-22,1];
     const aspect = gl.drawingBufferWidth / gl.drawingBufferHeight;
-    const extent = 5.25;
-    const projection = [1/(extent*aspect),0,0,0, 0,1/extent,0,0, 0,0,-2/30,0, 0,0,-1,1];
+    const extent = maze.size / 2 + 0.65;
+    const projection = [1/(extent*aspect),0,0,0, 0,1/extent,0,0, 0,0,-2/44,0, 0,0,-1,1];
     const camera = multiply(projection, view);
     const draw = (object: ReturnType<typeof mesh>, rgb: number[], x=0, y=0, z=0) => {
       const model = identity(); model[12]=x; model[13]=y; model[14]=z;

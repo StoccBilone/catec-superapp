@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Animated, Easing, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, View, useWindowDimensions } from "react-native";
 import { Pressable } from "./Typography";
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { GlassTool } from './GlassTool';
 import { X } from 'lucide-react-native';
 import { useTheme } from '../theme/themeContext';
 import { usePreferences } from '../context/PreferencesContext';
@@ -36,11 +37,11 @@ export function GlassModal({ visible, onClose, children }: GlassModalProps) {
       <KeyboardAvoidingView pointerEvents="box-none" behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.position, { paddingTop: Math.max(insets.top, Platform.OS === 'web' ? 54 : 0) + 12 }]}>
         <Animated.View pointerEvents={visible ? 'auto' : 'none'} style={[styles.sheet, { backgroundColor: colors.canvasElevated, paddingBottom: Math.max(insets.bottom, 12), transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [height, 0] }) }] }]}>
           <View style={styles.grabber}><View style={[styles.handle, { backgroundColor: colors.textMuted }]} /></View>
-          <Pressable accessibilityLabel="Закрыть окно" onPress={onClose} style={[styles.close, { backgroundColor: colors.inputBg }]}><X size={18} color={colors.textSecondary} /></Pressable>
+          <View style={styles.close}><GlassTool label="Закрыть окно" onPress={onClose}><X size={18} color={colors.textSecondary} /></GlassTool></View>
           <ScrollView bounces={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>{visible ? children : lastContent}</ScrollView>
         </Animated.View>
       </KeyboardAvoidingView>
     </View>
   </Modal>;
 }
-const styles = StyleSheet.create({ root: { flex: 1 }, position: { flex: 1, justifyContent: 'flex-end' }, sheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: '92%', overflow: 'hidden' }, grabber: { alignItems: 'center', paddingVertical: 14 }, handle: { width: 38, height: 5, borderRadius: 3, opacity: 0.35 }, close: { position: 'absolute', top: 14, right: 18, width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', zIndex: 1 }, content: { paddingHorizontal: 20, paddingBottom: 24 } });
+const styles = StyleSheet.create({ root: { flex: 1 }, position: { flex: 1, justifyContent: 'flex-end' }, sheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: '92%', overflow: 'hidden' }, grabber: { alignItems: 'center', paddingVertical: 14 }, handle: { width: 38, height: 5, borderRadius: 3, opacity: 0.35 }, close: { position: 'absolute', top: 14, right: 18, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', zIndex: 1 }, content: { paddingHorizontal: 20, paddingBottom: 24 } });

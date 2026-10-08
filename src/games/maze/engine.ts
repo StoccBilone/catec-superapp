@@ -1,10 +1,10 @@
 export interface Maze { size: number; cells: number[][]; start: { x: number; z: number }; goal: { x: number; z: number }; }
 export interface Marble { x: number; z: number; vx: number; vz: number; elapsed: number; won: boolean; }
 export const MARBLE_RADIUS = 0.23;
-export function makeMaze(seed = 1): Maze {
+export function makeMaze(seed = 1, size = 11): Maze {
   let state = seed >>> 0;
   const random = () => { state = (state * 1664525 + 1013904223) >>> 0; return state / 4294967296; };
-  const size = 9;
+  if (!Number.isInteger(size) || size < 9 || size > 21 || size % 2 === 0) throw new Error('Invalid maze size');
   const cells = Array.from({ length: size }, () => Array<number>(size).fill(1));
   const stack = [{ x: 1, z: 1 }]; cells[1][1] = 0;
   while (stack.length) {
@@ -16,7 +16,17 @@ export function makeMaze(seed = 1): Maze {
     cells[(here.z + next.z) / 2][(here.x + next.x) / 2] = 0;
     cells[next.z][next.x] = 0; stack.push(next);
   }
-  return { size, cells, start: { x: 1.5, z: 1.5 }, goal: { x: 7.5, z: 7.5 } };
+  // Choose the farthest exit to avoid trivial random layouts.
+  const queue = [{ x: 1, z: 1 }], seen = new Set(['1,1']);
+  for (let i = 0; i < queue.length; i++) {
+    const here = queue[i];
+    for (const next of [{ x: here.x+1, z: here.z }, { x: here.x-1, z: here.z }, { x: here.x, z: here.z+1 }, { x: here.x, z: here.z-1 }]) {
+      const key = next.x + ',' + next.z;
+      if (cells[next.z]?.[next.x] === 0 && !seen.has(key)) { seen.add(key); queue.push(next); }
+    }
+  }
+  const farthest = queue[queue.length - 1];
+  return { size, cells, start: { x: 1.5, z: 1.5 }, goal: { x: farthest.x + 0.5, z: farthest.z + 0.5 } };
 }
 export function newMarble(maze: Maze): Marble { return { ...maze.start, vx: 0, vz: 0, elapsed: 0, won: false }; }
 export function stepMarble(marble: Marble, maze: Maze, tilt: { x: number; z: number }, elapsed: number): { marble: Marble; collision: boolean } {
@@ -26,8 +36,8 @@ export function stepMarble(marble: Marble, maze: Maze, tilt: { x: number; z: num
   const clamp = (n: number) => Math.max(-1, Math.min(1, Number.isFinite(n) ? n : 0));
   let collision = false;
   for (let i = 0; i < count; i++) {
-    next.vx = (next.vx + clamp(tilt.x) * 8 * dt) * Math.exp(-2.3 * dt);
-    next.vz = (next.vz + clamp(tilt.z) * 8 * dt) * Math.exp(-2.3 * dt);
+    next.vx = (next.vx + clamp(tilt.x) * 14 * dt) * Math.exp(-2 * dt);
+    next.vz = (next.vz + clamp(tilt.z) * 14 * dt) * Math.exp(-2 * dt);
     next.x += next.vx * dt; next.z += next.vz * dt;
     // Resolve circle against every nearby wall; short steps prevent tunnelling.
     for (let z = Math.max(0, Math.floor(next.z) - 1); z <= Math.min(maze.size - 1, Math.floor(next.z) + 1); z++) {

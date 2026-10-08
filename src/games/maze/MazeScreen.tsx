@@ -12,7 +12,7 @@ import { useTheme } from '../../theme/themeContext';
 import { usePreferences } from '../../context/PreferencesContext';
 import { makeMaze, newMarble, stepMarble } from './engine';
 import { createMazeRenderer } from './renderer';
-import { emptyProgress, loadMazeProgress, MAZE_SEEDS, MazeProgress, saveMazeProgress } from './storage';
+import { emptyProgress, loadMazeProgress, MAZE_SIZES, MazeProgress, saveMazeProgress } from './storage';
 
 type Phase = 'ready' | 'playing' | 'paused' | 'won';
 const formatTime = (seconds: number) => `${Math.floor(seconds / 60)}:${Math.floor(seconds % 60).toString().padStart(2, '0')}`;
@@ -33,7 +33,8 @@ function MazeRound({ level, best, onWin, onNext }: { level: number; best: number
   const { colors, mode } = useTheme();
   const { motionReduced } = usePreferences();
   const { width, height } = useWindowDimensions();
-  const maze = useMemo(() => makeMaze(MAZE_SEEDS[level]), [level]);
+  const [seed, setSeed] = useState(() => Math.floor(Math.random() * 0x100000000));
+  const maze = useMemo(() => makeMaze(seed, MAZE_SIZES[level]), [seed, level]);
   const [initial] = useState(() => newMarble(maze));
   const marble = useRef(initial);
   const renderer = useRef<ReturnType<typeof createMazeRenderer> | null>(null);
@@ -85,29 +86,42 @@ function MazeRound({ level, best, onWin, onNext }: { level: number; best: number
   };
   useEffect(() => {
     if (phase !== 'playing' || control !== 'tilt') return;
-    Accelerometer.setUpdateInterval(32);
+    Accelerometer.setUpdateInterval(16);
     const subscription = Accelerometer.addListener(({ x, y }) => {
       if (!active.current) return;
       const b = baseline.current;
       if (b.count < 10) { b.x += x; b.y += y; b.count++; input.current = { x: 0, z: 0 }; return; }
       const clamp = (n: number) => Math.max(-1, Math.min(1, n));
-      input.current = { x: input.current.x * 0.7 + clamp((x - b.x / 10) * 3) * 0.3, z: input.current.z * 0.7 + clamp(-(y - b.y / 10) * 3) * 0.3 };
+      input.current = { x: clamp((x - b.x / 10) * 3), z: clamp(-(y - b.y / 10) * 3) };
     });
     return () => subscription.remove();
   }, [phase, control]);
   useEffect(() => {
     if (phase !== 'playing' || !glReady) return;
-    let frame = 0, previous = 0, display = 0, lastHaptic = 0;
+    let frame = 0, previous = 0, display = 0, lastHaptic = 0, accumulator = 0;
+    let before = marble.current;
+    const smooth = { x: 0, z: 0 };
+    const fixed = 1 / 120;
     const tick = (now: number) => {
       if (!active.current) return;
       if (previous) {
-        const result = stepMarble(marble.current, maze, input.current, (now - previous) / 1000);
-        marble.current = result.marble;
-        try { renderer.current?.draw(result.marble); } catch { active.current = false; setGlError(true); pause(); return; }
-        if (now - display > 250 || result.marble.won) { setTime(result.marble.elapsed); display = now; }
-        if (result.collision && !motionReduced && now - lastHaptic > 180) { lastHaptic = now; void Haptics.selectionAsync().catch(() => {}); }
-        if (result.marble.won) {
-          active.current = false; setPhase('won'); winCallback.current(Math.round(result.marble.elapsed * 1000));
+        accumulator += Math.min((now - previous) / 1000, 0.05);
+        let collision = false;
+        while (accumulator >= fixed && !marble.current.won) {
+          const blend = 1 - Math.exp(-fixed / 0.055);
+          smooth.x += (input.current.x - smooth.x) * blend;
+          smooth.z += (input.current.z - smooth.z) * blend;
+          before = marble.current;
+          const result = stepMarble(before, maze, smooth, fixed);
+          marble.current = result.marble; collision ||= result.collision; accumulator -= fixed;
+        }
+        const ball = marble.current, alpha = accumulator / fixed;
+        const rendered = ball.won ? ball : { ...ball, x: before.x + (ball.x - before.x) * alpha, z: before.z + (ball.z - before.z) * alpha };
+        try { renderer.current?.draw(rendered); } catch { active.current = false; setGlError(true); pause(); return; }
+        if (now - display > 250 || ball.won) { setTime(ball.elapsed); display = now; }
+        if (collision && !motionReduced && now - lastHaptic > 180) { lastHaptic = now; void Haptics.selectionAsync().catch(() => {}); }
+        if (ball.won) {
+          active.current = false; setPhase('won'); winCallback.current(Math.round(ball.elapsed * 1000));
           if (!motionReduced) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
           return;
         }
@@ -119,6 +133,8 @@ function MazeRound({ level, best, onWin, onNext }: { level: number; best: number
   }, [phase, glReady, maze, motionReduced, pause]);
   const moveTouch = useCallback((x: number, z: number) => { input.current = { x, z }; }, []);
   const reset = () => { active.current = false; calibrate(); marble.current = newMarble(maze); setTime(0); setPhase('ready'); renderer.current?.draw(marble.current); };
+  const randomize = () => { reset(); setGlReady(false); setSeed(Math.floor(Math.random() * 0x100000000)); };
+  useEffect(() => { marble.current = newMarble(maze); }, [maze]);
   return <ScreenSafeArea edges={['top', 'left', 'right', 'bottom']} style={{ flex: 1, backgroundColor: colors.canvas }}>
     <View style={styles.header}>
       <GlassTool label="Назад" onPress={leave}><ChevronLeft size={22} color={colors.textPrimary} /></GlassTool>
@@ -127,12 +143,12 @@ function MazeRound({ level, best, onWin, onNext }: { level: number; best: number
     </View>
     <ScrollView scrollEnabled={phase !== 'playing'} bounces={false} contentContainerStyle={styles.content}>
       <View style={[styles.stats, { width: size }]}>
-        <View><Text style={{ color: colors.textMuted, fontSize: 12 }}>Уровень</Text><Text translate={false} style={[styles.number, { color: colors.textPrimary }]}>{level + 1} / {MAZE_SEEDS.length}</Text></View>
+        <View><Text style={{ color: colors.textMuted, fontSize: 12 }}>Уровень</Text><Text translate={false} style={[styles.number, { color: colors.textPrimary }]}>{level + 1} / {MAZE_SIZES.length}</Text></View>
         <View><Text style={{ color: colors.textMuted, fontSize: 12 }}>Время</Text><Text translate={false} style={[styles.number, { color: colors.textPrimary }]}>{formatTime(time)}</Text></View>
         <View><Text style={{ color: colors.textMuted, fontSize: 12 }}>Рекорд</Text><Text translate={false} style={[styles.number, { color: colors.textPrimary }]}>{best ? formatTime(best / 1000) : '—'}</Text></View>
       </View>
       <TouchSurface size={size} enabled={control === 'touch' && phase === 'playing'} onMove={moveTouch}>
-        {!glError && <GLView key={glAttempt} style={{ flex: 1 }} onContextCreate={gl => {
+        {!glError && <GLView key={`${seed}:${glAttempt}`} style={{ flex: 1 }} onContextCreate={gl => {
           try {
             renderer.current?.dispose(); renderer.current = createMazeRenderer(gl, maze, mode === 'dark');
             renderer.current.draw(marble.current); setGlReady(true);
@@ -146,7 +162,8 @@ function MazeRound({ level, best, onWin, onNext }: { level: number; best: number
           <Text style={[styles.panelTitle, { color: colors.textPrimary }]}>{phase === 'won' ? 'Лабиринт пройден' : phase === 'paused' ? 'Пауза' : 'Доведите шарик до лунки'}</Text>
           {phase !== 'won' && <View style={styles.row}>{(['tilt', 'touch'] as const).map(value => <Pressable key={value} accessibilityRole="button" accessibilityState={{ selected: control === value }} onPress={() => { calibrate(); setControl(value); }} style={[styles.choice, { backgroundColor: control === value ? colors.accent : colors.cardBg }]}><Text style={{ color: control === value ? colors.onAccent : colors.textPrimary }}>{value === 'tilt' ? 'Наклон' : 'Касание'}</Text></Pressable>)}</View>}
           {sensorUnavailable && <Text style={{ color: colors.textSecondary, fontSize: 13 }}>Датчик недоступен. Управляйте касанием.</Text>}
-          <Pressable accessibilityRole="button" disabled={starting || !glReady || glError} onPress={phase === 'won' ? onNext : () => { void start(); }} style={[styles.action, { backgroundColor: colors.accent, opacity: glReady && !glError ? 1 : 0.4 }]}><Text style={{ color: colors.onAccent, fontWeight: '600' }}>{starting ? 'Подготовка...' : phase === 'won' ? level === MAZE_SEEDS.length - 1 ? 'К играм' : 'Следующий уровень' : phase === 'paused' ? 'Продолжить' : 'Играть'}</Text></Pressable>
+          <Pressable accessibilityRole="button" disabled={starting || !glReady || glError} onPress={phase === 'won' ? onNext : () => { void start(); }} style={[styles.action, { backgroundColor: colors.accent, opacity: glReady && !glError ? 1 : 0.4 }]}><Text style={{ color: colors.onAccent, fontWeight: '600' }}>{starting ? 'Подготовка...' : phase === 'won' ? level === MAZE_SIZES.length - 1 ? 'К играм' : 'Следующий уровень' : phase === 'paused' ? 'Продолжить' : 'Играть'}</Text></Pressable>
+          {phase === 'ready' && <Pressable onPress={randomize} style={styles.secondary}><Text style={{ color: colors.textSecondary }}>Другой лабиринт</Text></Pressable>}
           {phase === 'paused' && <Pressable onPress={reset} style={styles.secondary}><Text style={{ color: colors.textSecondary }}>Начать заново</Text></Pressable>}
         </>}
       </View>
@@ -181,7 +198,7 @@ export function MazeScreen({ profileId }: { profileId: string }) {
   }, [persist]);
   if (!progress) return <ScreenSafeArea style={[styles.loading, { backgroundColor: colors.canvas }]}>{loadError ? <><Text style={{ color: colors.textPrimary }}>Не удалось открыть игру</Text><Pressable onPress={() => { setLoadError(false); setRetry(n => n + 1); }}><Text style={{ color: colors.textPrimary, marginTop: 16 }}>Повторить</Text></Pressable><Pressable onPress={leave}><Text style={{ color: colors.textSecondary, marginTop: 16 }}>К играм</Text></Pressable></> : <ActivityIndicator color={colors.textPrimary} />}</ScreenSafeArea>;
   return <View style={{ flex: 1, backgroundColor: colors.canvas }}>
-    <MazeRound key={`${progress.level}:${mode}`} level={progress.level} best={progress.best[progress.level]} onWin={win} onNext={() => { if (progress.level === MAZE_SEEDS.length - 1) { persist({ ...progress, level: 0 }); leave(); } else persist({ ...progress, level: progress.level + 1 }); }} />
+    <MazeRound key={`${progress.level}:${mode}`} level={progress.level} best={progress.best[progress.level]} onWin={win} onNext={() => { if (progress.level === MAZE_SIZES.length - 1) { persist({ ...progress, level: 0 }); leave(); } else persist({ ...progress, level: progress.level + 1 }); }} />
     {saveError && <Pressable onPress={() => persist(current.current)} style={{ padding: 12 }}><Text style={{ color: colors.textSecondary }}>Не удалось сохранить игру. Нажмите, чтобы повторить.</Text></Pressable>}
   </View>;
 }

@@ -170,10 +170,11 @@ async function checkIslandStorage() {
 Promise.all([checkStorage(), checkIslandStorage()]).then(() => console.log('Games OK: 2048 rules and saves; Island model selection, curved collisions, score, paddle angles, walls, loss, long rally and records.')).catch(error => { console.error(error); process.exitCode = 1; });
 const mazeEngine = load('src/games/maze/engine.ts');
 const { makeMaze, newMarble, stepMarble, MARBLE_RADIUS } = mazeEngine;
-for (const seed of [112, 208, 304, 416, 512]) {
-  const maze = makeMaze(seed);
-  assert.deepEqual(maze, makeMaze(seed), 'stages are deterministic');
-  for (let n = 0; n < maze.size; n++) assert.ok(maze.cells[0][n] && maze.cells[8][n] && maze.cells[n][0] && maze.cells[n][8], 'outer walls stay closed');
+for (const [stage, seed] of [112, 208, 304, 416, 512].entries()) {
+  const size = [11,11,13,13,15][stage];
+  const maze = makeMaze(seed, size);
+  assert.deepEqual(maze, makeMaze(seed, size), 'stages are deterministic');
+  for (let n = 0; n < maze.size; n++) assert.ok(maze.cells[0][n] && maze.cells[maze.size-1][n] && maze.cells[n][0] && maze.cells[n][maze.size-1], 'outer walls stay closed');
   const visited = new Set(['1,1']), queue = [[1, 1]];
   for (let i = 0; i < queue.length; i++) {
     const [x, z] = queue[i];
@@ -182,7 +183,7 @@ for (const seed of [112, 208, 304, 416, 512]) {
       if (maze.cells[nz]?.[nx] === 0 && !visited.has(key)) { visited.add(key); queue.push([nx,nz]); }
     }
   }
-  assert.ok(visited.has('7,7'), 'every stage has a route to the goal');
+  assert.ok(visited.has(`${Math.floor(maze.goal.x)},${Math.floor(maze.goal.z)}`), 'every stage has a route to the goal');
   assert.equal(visited.size, maze.cells.flat().filter(n => n === 0).length, 'all corridors are connected');
   let ball = newMarble(maze);
   for (let i=0;i<5000;i++) {
@@ -216,7 +217,49 @@ async function checkMazeStorage() {
   const a=storage.saveMazeProgress('one',first), b=storage.saveMazeProgress('one',last);
   assert.deepEqual(await storage.loadMazeProgress('one'),last); await Promise.all([a,b]);
   assert.deepEqual(await storage.loadMazeProgress('two'),storage.emptyProgress());
-  values.set('@catec_maze_v1:one',JSON.stringify({...last,best:[-1]}));
+  values.set('@catec_maze_v2:one',JSON.stringify({...last,best:[-1]}));
   assert.deepEqual(await storage.loadMazeProgress('one'),storage.emptyProgress(),'malformed progress recovers');
 }
 checkMazeStorage().then(()=>console.log('Maze OK: five solvable stages, wall collisions, goal, timing, matrices and isolated ordered saves.')).catch(error=>{console.error(error);process.exitCode=1;});
+const memory = load('src/games/memory/engine.ts');
+for (const size of [4,6,8]) {
+  let randomState=41; const random=()=>{randomState=(randomState*1664525+1013904223)>>>0;return randomState/4294967296;};
+  const fresh=memory.newMemory(size,random);
+  assert.equal(fresh.cards.length,size*size);assert.equal(new Set(fresh.cards.map(c=>c.id)).size,size*size);
+  const groups=new Map();for(const c of fresh.cards){const pair=groups.get(c.symbol)||[];pair.push(c.id);groups.set(c.symbol,pair);}
+  assert.equal(groups.size,size*size/2);assert.ok([...groups.values()].every(pair=>pair.length===2));
+  let game=memory.revealCard(fresh,0);
+  assert.equal(memory.revealCard(game,0),game,'double taps cannot reveal the same card twice');
+  const other=fresh.cards.find(c=>c.symbol!==fresh.cards[0].symbol).id;
+  game=memory.revealCard(game,other);assert.equal(game.moves,1);
+  assert.equal(memory.revealCard(game,groups.get(fresh.cards[0].symbol)[1]),game,'a third card stays locked');
+  game=memory.resolveCards(game);assert.equal(memory.pairCount(game),0);assert.equal(game.selected.length,0);
+  game=fresh;
+  for(const pair of groups.values()) {
+    const before=game;game=memory.revealCard(game,pair[0]);game=memory.revealCard(game,pair[1]);game=memory.resolveCards(game);
+    assert.equal(before.cards[pair[0]].matched,false,'matching never mutates previous state');
+    assert.equal(memory.revealCard(game,pair[0]),game,'matched cards stay locked');
+  }
+  assert.equal(memory.memoryFinished(game),true);assert.equal(game.moves,size*size/2);assert.equal(memory.pairCount(game),size*size/2);
+}
+assert.throws(()=>memory.newMemory(5));
+const layouts=new Set();for(let seed=0;seed<40;seed++){
+  const maze=makeMaze(seed,13);layouts.add(JSON.stringify(maze.cells));
+  const distances=new Map([['1,1',0]]),queue=[[1,1]];
+  for(let i=0;i<queue.length;i++){const [x,z]=queue[i];for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1]]){const nx=x+dx,nz=z+dz,key=`${nx},${nz}`;if(maze.cells[nz]?.[nx]===0&&!distances.has(key)){distances.set(key,distances.get(`${x},${z}`)+1);queue.push([nx,nz]);}}}
+  assert.equal(distances.get(`${Math.floor(maze.goal.x)},${Math.floor(maze.goal.z)}`),Math.max(...distances.values()),'random exit is the farthest reachable point');
+  assert.ok(Math.max(...distances.values())>=30,'larger mazes cannot end after a few steps');
+}
+assert.ok(layouts.size>=35,'random seeds produce diverse layouts');
+const open=makeMaze(1,21);open.cells=open.cells.map((row,z)=>row.map((_,x)=>x===0||z===0||x===20||z===20?1:0));
+let fast=newMarble(open);for(let n=0;n<120;n++)fast=stepMarble(fast,open,{x:1,z:0},1/120).marble;
+assert.ok(fast.vx>5,'marble responds faster to sustained input');
+async function checkMemoryStorage(){
+ const values=new Map();let fail=false;const fake={getItem:async k=>values.get(k)||null,setItem:async(k,v)=>{await new Promise(r=>setTimeout(r,JSON.parse(v)[4]===20?15:1));if(fail){fail=false;throw Error('Disk unavailable');}values.set(k,v);}};
+ const s=load('src/games/memory/storage.ts',{'@react-native-async-storage/async-storage':{__esModule:true,default:fake},'./engine':memory});
+ const a=s.saveMemoryRecords('one',{4:20,6:null,8:null}),b=s.saveMemoryRecords('one',{4:12,6:30,8:60});
+ assert.deepEqual(await s.loadMemoryRecords('one'),{4:12,6:30,8:60});await Promise.all([a,b]);assert.deepEqual(await s.loadMemoryRecords('two'),s.emptyRecords());
+ fail=true;await assert.rejects(s.saveMemoryRecords('one',{4:8,6:null,8:null}));await s.saveMemoryRecords('one',{4:10,6:null,8:null});assert.equal((await s.loadMemoryRecords('one'))[4],10);
+ values.set('@catec_memory_v1:one','{"4":1,"6":null,"8":null}');assert.deepEqual(await s.loadMemoryRecords('one'),s.emptyRecords());
+}
+checkMemoryStorage().then(()=>console.log('Memory OK: all three difficulties, shuffled pairs, tap locking, matching, win and ordered isolated records. Random maze diversity, farthest exits and faster physics OK.')).catch(e=>{console.error(e);process.exitCode=1;});

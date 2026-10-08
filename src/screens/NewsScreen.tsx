@@ -148,13 +148,8 @@ export const NewsScreen: React.FC<NewsScreenProps> = ({ profile, onOpenNotificat
 
           </View>
           <View style={styles.headerActions}>
-            <TouchableOpacity onPress={onOpenNotifications} accessibilityLabel="Уведомления" style={[styles.headerButton, { borderColor: colors.cardBorder, backgroundColor: colors.cardBg }]}>
-              <Bell color={colors.textPrimary} size={21} />
-
-            </TouchableOpacity>
-            <TouchableOpacity onPress={openComposer} accessibilityLabel="Создать публикацию" style={[styles.composeButton, { backgroundColor: colors.accent }]}>
-              <PenLine color={colors.onAccent} size={20} />
-            </TouchableOpacity>
+            <GlassTool label="Уведомления" onPress={onOpenNotifications}><Bell color={colors.textPrimary} size={21} /></GlassTool>
+            <GlassTool label="Создать публикацию" onPress={openComposer}><PenLine color={colors.textPrimary} size={20} /></GlassTool>
           </View>
         </View>
 
@@ -231,7 +226,7 @@ function ArticleModal({ article, colors, onClose }: { article: NewsItem | null; 
   return <Modal visible={!!article} animationType={motionReduced ? 'none' : 'slide'} onRequestClose={onClose}>
     <SafeAreaView modal style={[styles.modalPage, { backgroundColor: colors.canvasElevated }]}>
       <View style={[styles.modalHeader, { borderBottomColor: colors.divider }]}>
-        <TouchableOpacity onPress={onClose} style={styles.modalIcon}><ChevronLeft color={colors.textPrimary} size={28} /></TouchableOpacity>
+        <GlassTool label="Назад" onPress={onClose}><ChevronLeft color={colors.textPrimary} size={22} /></GlassTool>
         <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Публикация</Text>
         <TouchableOpacity style={styles.modalIcon}><Bookmark color={colors.textPrimary} size={21} /></TouchableOpacity>
       </View>

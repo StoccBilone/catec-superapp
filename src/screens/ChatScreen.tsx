@@ -125,9 +125,9 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
   return (
     <KeyboardAvoidingView style={[styles.container, { backgroundColor: colors.canvas }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={insets.top}>
       <View style={[styles.conversationHeader, { borderBottomColor: colors.divider }]}>
-        <TouchableOpacity onPress={onBack} accessibilityLabel="Назад к чатам" style={styles.backButton}><ChevronLeft color={colors.accent} size={28} /></TouchableOpacity>
+        <GlassTool label="Назад к чатам" onPress={() => onBack?.()} disabled={!onBack}><ChevronLeft color={colors.textPrimary} size={22} /></GlassTool>
         <View style={{ flex: 1 }}><Text numberOfLines={1} style={[styles.conversationTitle, { color: colors.textPrimary }]}>{title || profile.group}</Text>{groupMeta && <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 3 }}>{groupMeta.studentCount} студентов</Text>}</View>
-        <TouchableOpacity onPress={() => setShowInfoModal(true)} style={styles.backButton} accessibilityLabel="О беседе"><Info color={colors.textSecondary} size={22} /></TouchableOpacity>
+        <GlassTool label="О беседе" onPress={() => setShowInfoModal(true)}><Info color={colors.textPrimary} size={22} /></GlassTool>
       </View>
 
       {/* Subheader: Curator Info Bar */}

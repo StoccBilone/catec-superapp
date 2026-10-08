@@ -7,6 +7,7 @@ import { useTheme, ThemePreference } from '../theme/themeContext';
 import { Language, usePreferences } from '../context/PreferencesContext';
 import { CATEC_GROUPS } from '../data/catecData';
 import { UserProfile } from '../types';
+import { GlassTool } from './GlassTool';
 import { GlassModal } from './GlassModal';
 import { ScaleSlider } from './ScaleSlider';
 
@@ -22,7 +23,7 @@ export function SettingsModal({ visible, onClose, profile, onUpdate, onLogout }:
   const group = (title: string, children: React.ReactNode) => <View style={s.section}><Text style={[s.sectionTitle, { color: colors.textMuted }]}>{title}</Text><View style={[s.group, { backgroundColor: colors.cardBg }]}>{children}</View></View>;
   return <Modal visible={visible} animationType={preferences.motionReduced ? 'none' : 'slide'} onRequestClose={close} presentationStyle="fullScreen">
     <ScreenSafeArea modal style={{ flex: 1, backgroundColor: colors.canvas }}>
-      <View style={s.header}><Pressable accessibilityLabel="Назад" onPress={close} style={s.back}><ChevronLeft color={colors.accent} size={28} /></Pressable><Text style={[s.title, { color: colors.textPrimary }]}>Настройки</Text></View>
+      <View style={s.header}><GlassTool label="Назад" onPress={close}><ChevronLeft color={colors.textPrimary} size={22} /></GlassTool><Text style={[s.title, { color: colors.textPrimary }]}>Настройки</Text></View>
       <ScrollView contentContainerStyle={s.content}>
         {group('Интерфейс', <>{row('Оформление', { light: 'Светлое', dark: 'Тёмное', system: 'Системное' }[preference], 'theme')}{row('Размер текста', `${Math.round(preferences.interfaceScale * 100)}%`, 'size')}{row('Язык', { ru: 'Русский', en: 'English', kk: 'Қазақша' }[preferences.language], 'language')}<View style={[s.row, { borderBottomWidth: 0 }]}><Text style={[s.label, { color: colors.textPrimary }]}>Уменьшить анимации</Text><Switch value={preferences.reduceMotion} onValueChange={reduceMotion => preferences.update({ reduceMotion })} trackColor={{ true: colors.textSecondary }} /></View></>)}
         {group('Аккаунт', <>{row('Учебная группа', profile.group, 'group')}{row('Код входа', '••••', 'pin')}</>)}
