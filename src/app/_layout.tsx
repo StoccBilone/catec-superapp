@@ -28,6 +28,7 @@ function Navigation() {
         <Stack.Protected guard={authenticated}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="conversation" />
+          <Stack.Screen name="games/2048" />
         </Stack.Protected>
         <Stack.Protected guard={!authenticated}>
           <Stack.Screen name="auth" />

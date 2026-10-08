@@ -2,9 +2,12 @@ import React from 'react';
 import { DynamicColorIOS, Platform } from 'react-native';
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import { useTheme } from '../../theme/themeContext';
+import { usePreferences } from '../../context/PreferencesContext';
+import { translate } from '../../i18n/strings';
 
 export default function TabLayout() {
   const { mode, colors } = useTheme();
+  const { language } = usePreferences();
   const iconColor = Platform.OS === 'ios'
     ? DynamicColorIOS({ dark: '#ffffff', light: '#1c1c1e' })
     : mode === 'dark' ? '#ffffff' : '#1c1c1e';
@@ -22,6 +25,10 @@ export default function TabLayout() {
       <NativeTabs.Trigger name="chat" disableAutomaticContentInsets accessibilityLabel="Чаты" contentStyle={{ backgroundColor: colors.canvas }}>
         <NativeTabs.Trigger.Icon sf={{ default: 'bubble.left', selected: 'bubble.left.fill' }} md="chat_bubble" />
         <NativeTabs.Trigger.Label hidden>Беседа</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="games" disableAutomaticContentInsets accessibilityLabel={translate('Игры', language)} contentStyle={{ backgroundColor: colors.canvas }}>
+        <NativeTabs.Trigger.Icon sf={{ default: 'gamecontroller', selected: 'gamecontroller.fill' }} md="sports_esports" />
+        <NativeTabs.Trigger.Label hidden>{translate('Игры', language)}</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="profile" disableAutomaticContentInsets accessibilityLabel="Кабинет" contentStyle={{ backgroundColor: colors.canvas }}>
         <NativeTabs.Trigger.Icon sf={{ default: 'person', selected: 'person.fill' }} md="person" />
