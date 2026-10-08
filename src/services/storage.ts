@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { UserProfile, ChatMessage, NewsItem } from '../types';
 import { CATEC_NEWS } from '../data/catecData';
+import { loadCloudPosts, publishCloudPost, syncCloudProfile, loadCloudMessages, sendCloudMessage } from './cloud';
 
 const KEYS = {
   USER_PROFILE: '@catec_user_profile_v2',
@@ -26,10 +27,13 @@ export const StorageService = {
 
   async saveUserProfile(profile: UserProfile): Promise<void> {
     try {
-      await AsyncStorage.setItem(KEYS.USER_PROFILE, JSON.stringify(profile));
+      const synced = await syncCloudProfile(profile);
+      Object.assign(profile, synced);
+      await AsyncStorage.setItem(KEYS.USER_PROFILE, JSON.stringify(synced));
       await AsyncStorage.setItem(KEYS.IS_LOGGED_IN, 'true');
     } catch (e) {
       console.warn('Error saving profile', e);
+      throw e;
     }
   },
 
@@ -58,6 +62,11 @@ export const StorageService = {
   // --- NEWS & POSTS ---
   async getAllNewsAndPosts(): Promise<NewsItem[]> {
     try {
+      const posts = await loadCloudPosts();
+      await AsyncStorage.setItem(KEYS.USER_POSTS, JSON.stringify(posts));
+      return [...posts, ...CATEC_NEWS];
+    } catch { /* Show cached posts when offline. */ }
+    try {
       const customPostsRaw = await AsyncStorage.getItem(KEYS.USER_POSTS);
       const customPosts: NewsItem[] = customPostsRaw ? JSON.parse(customPostsRaw) : [];
       return [...customPosts, ...CATEC_NEWS];
@@ -67,6 +76,11 @@ export const StorageService = {
   },
 
   async createPost(post: NewsItem): Promise<NewsItem[]> {
+    await publishCloudPost(post);
+    return this.getAllNewsAndPosts();
+  },
+
+  async cachePost(post: NewsItem): Promise<NewsItem[]> {
     try {
       const customPostsRaw = await AsyncStorage.getItem(KEYS.USER_POSTS);
       const customPosts: NewsItem[] = customPostsRaw ? JSON.parse(customPostsRaw) : [];
@@ -81,6 +95,7 @@ export const StorageService = {
 
   // --- CHAT MESSAGES ---
   async getChatMessages(groupId: string): Promise<ChatMessage[]> {
+    if (groupId.startsWith('cloud:')) return loadCloudMessages(groupId.slice(6));
     try {
       const allRaw = await AsyncStorage.getItem(KEYS.CHAT_MESSAGES);
       if (allRaw) {
@@ -104,6 +119,7 @@ export const StorageService = {
   },
 
   async addChatMessage(groupId: string, message: ChatMessage): Promise<ChatMessage[]> {
+    if (groupId.startsWith('cloud:')) return sendCloudMessage(groupId.slice(6), message);
     try {
       const allRaw = await AsyncStorage.getItem(KEYS.CHAT_MESSAGES);
       const chatsMap = allRaw ? JSON.parse(allRaw) : {};

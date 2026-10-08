@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import { View, StyleSheet, Dimensions } from "react-native";
+import { Text } from "./Typography";
 import { LinearGradient } from 'expo-linear-gradient';
 import { QrCode, Shield, Sparkles, Wifi } from 'lucide-react-native';
 import { UserProfile } from '../types';
@@ -65,7 +66,7 @@ export const StudentCard: React.FC<StudentCardProps> = ({ profile }) => {
             </View>
 
             <View style={styles.detailsCol}>
-              <Text style={styles.nameText} numberOfLines={1}>
+              <Text translate={false} style={styles.nameText} numberOfLines={1}>
                 {profile.fullName}
               </Text>
               <Text style={styles.facultyText} numberOfLines={1}>

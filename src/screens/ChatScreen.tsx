@@ -1,42 +1,41 @@
 import React, { useState, useEffect, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TextInput,
-  TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
-} from 'react-native';
+import { AppState, View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from "react-native";
+import { Text, TextInput, TouchableOpacity, Alert, Pressable } from "../components/Typography";
 import * as Haptics from 'expo-haptics';
 import {
   Send,
   Paperclip,
   Users,
-  FileText,
   Shield,
   Info,
   ChevronLeft,
+  Mic,
+  Video,
+  X,
 } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChatMessage, UserProfile } from '../types';
+import { ChatMessage, Material, UserProfile } from '../types';
 import { CATEC_GROUPS } from '../data/catecData';
 import { StorageService } from '../services/storage';
 import { useTheme } from '../theme/themeContext';
 import { GlassModal } from '../components/GlassModal';
+import { MaterialView } from '../components/MaterialView';
+import { pickMaterial } from '../services/materials';
+import { ChatRecorder, RecorderHandle } from '../components/ChatRecorder';
 
 interface ChatScreenProps {
   profile: UserProfile;
   onOpenNotifications: () => void;
   title?: string;
   onBack?: () => void;
+  groupName?: string;
 }
 
 export const ChatScreen: React.FC<ChatScreenProps> = ({
   profile,
   title,
   onBack,
+  groupName,
 }) => {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -44,19 +43,47 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
   const [inputText, setInputText] = useState('');
   const [showInfoModal, setShowInfoModal] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
+  const nearBottom = useRef(true);
+  const recorder = useRef<RecorderHandle>(null);
+  const heldLong = useRef(false);
+  const [recordMode, setRecordMode] = useState<'voice' | 'videoNote'>('voice');
+  const [attachments, setAttachments] = useState<Material[]>([]);
+  const [showAttachmentPicker, setShowAttachmentPicker] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [headerHeight, setHeaderHeight] = useState(64);
+  const [subheaderHeight, setSubheaderHeight] = useState(0);
+  const attach = async (kind: 'media' | 'document') => {
+    if (busy || attachments.length >= 5) return;
+    setShowAttachmentPicker(false); setBusy(true);
+    try { await new Promise(resolve => setTimeout(resolve, 240)); const item = await pickMaterial(kind); if (item) setAttachments(current => [...current, item]); }
+    catch (error) { Alert.alert('Не удалось добавить вложение', error instanceof Error ? error.message : 'Попробуйте ещё раз.'); }
+    finally { setBusy(false); }
+  };
 
   const groupMeta = CATEC_GROUPS.find(
-    (g) => g.name.toLowerCase() === profile.group.toLowerCase()
+    (g) => g.name.toLowerCase() === (groupName || profile.group).toLowerCase()
   );
 
   useEffect(() => {
     let active = true;
-    void StorageService.getChatMessages(profile.group).then(list => { if (active) setMessages(list); });
-    return () => { active = false; };
+    let loading = false;
+    const load = async () => {
+      if (loading || AppState.currentState !== 'active') return;
+      loading = true;
+      try { const list = await StorageService.getChatMessages(profile.group); if (active) setMessages(list); }
+      catch { /* Keep the last messages while a connection recovers. */ }
+      finally { loading = false; }
+    };
+    void load();
+    const timer = setInterval(() => void load(), 4000);
+    return () => { active = false; clearInterval(timer); };
   }, [profile.group]);
 
-  const handleSend = async () => {
-    if (!inputText.trim()) return;
+  const send = async (recorded?: Material) => {
+    if (busy) throw new Error('Дождитесь завершения отправки.');
+    if (!recorded && !inputText.trim() && !attachments.length) return;
+    setBusy(true);
+    try {
 
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -76,27 +103,31 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
       text: inputText.trim(),
       createdAt: timeStr,
       isOwn: true,
+      attachments: recorded ? [recorded] : attachments,
     };
 
     const updated = await StorageService.addChatMessage(profile.group, newMsg);
+    nearBottom.current = true;
     setMessages(updated);
     setInputText('');
+    setAttachments([]);
 
     setTimeout(() => {
       scrollViewRef.current?.scrollToEnd({ animated: true });
     }, 100);
+    } finally { setBusy(false); }
   };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.canvas }]}>
-      <View style={[styles.conversationHeader, { borderBottomColor: colors.divider }]}>
+      <View onLayout={event => setHeaderHeight(event.nativeEvent.layout.height)} style={[styles.conversationHeader, { borderBottomColor: colors.divider }]}>
         <TouchableOpacity onPress={onBack} accessibilityLabel="Назад к чатам" style={styles.backButton}><ChevronLeft color={colors.accent} size={28} /></TouchableOpacity>
-        <View style={{ flex: 1 }}><Text numberOfLines={1} style={[styles.conversationTitle, { color: colors.textPrimary }]}>{title || profile.group}</Text><Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 3 }}>{groupMeta ? `${groupMeta.studentCount} студентов` : 'Локальная демобеседа'}</Text></View>
+        <View style={{ flex: 1 }}><Text numberOfLines={1} style={[styles.conversationTitle, { color: colors.textPrimary }]}>{title || profile.group}</Text>{groupMeta && <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 3 }}>{groupMeta.studentCount} студентов</Text>}</View>
         <TouchableOpacity onPress={() => setShowInfoModal(true)} style={styles.backButton} accessibilityLabel="О беседе"><Info color={colors.textSecondary} size={22} /></TouchableOpacity>
       </View>
 
       {/* Subheader: Curator Info Bar */}
-      {groupMeta && <View style={[styles.groupSubHeader, { borderBottomColor: colors.divider }]}>
+      {groupMeta && <View onLayout={event => setSubheaderHeight(event.nativeEvent.layout.height)} style={[styles.groupSubHeader, { borderBottomColor: colors.divider }]}>
         <View style={styles.subLeft}>
           <Users size={16} color={colors.accent} />
           <Text style={[styles.curatorText, { color: colors.textSecondary }]}>
@@ -114,7 +145,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
       </View>}
 
       {/* Message Feed */}
-      <KeyboardAvoidingView style={{ flex: 1, overflow: 'hidden' }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={insets.top}>
+      <KeyboardAvoidingView style={{ flex: 1, overflow: 'hidden' }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={insets.top + headerHeight + (groupMeta ? subheaderHeight : 0)}>
       <ScrollView
         style={{ flex: 1, overflow: 'hidden' }}
         contentInsetAdjustmentBehavior="never"
@@ -124,7 +155,9 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
         ref={scrollViewRef}
         contentContainerStyle={styles.messagesContainer}
         showsVerticalScrollIndicator={false}
-        onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+        onScroll={event => { const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent; nearBottom.current = contentOffset.y + layoutMeasurement.height >= contentSize.height - 80; }}
+        scrollEventThrottle={100}
+        onContentSizeChange={() => { if (nearBottom.current) scrollViewRef.current?.scrollToEnd({ animated: true }); }}
       >
         {messages.map((msg) => {
           const isOwn = msg.isOwn || msg.senderId === profile.id;
@@ -155,7 +188,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
               >
                 {!isOwn && (
                   <View style={styles.senderHeader}>
-                    <Text
+                    <Text translate={false}
                       style={[
                         styles.senderName,
                         { color: isTeacher ? colors.accent : colors.textPrimary },
@@ -172,31 +205,19 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
                   </View>
                 )}
 
-                <Text
+                {msg.text ? <Text translate={false}
                   style={[
                     styles.messageText,
                     { color: isOwn ? '#ffffff' : colors.textPrimary },
                   ]}
                 >
                   {msg.text}
-                </Text>
+                </Text> : null}
 
                 {/* Attachments if any */}
                 {msg.attachments && msg.attachments.length > 0 && (
                   <View style={styles.attachmentsList}>
-                    {msg.attachments.map((att, i) => (
-                      <View key={i} style={[styles.attachmentCard, { backgroundColor: 'rgba(0,0,0,0.15)' }]}>
-                        <FileText size={16} color={colors.accent} />
-                        <View style={styles.attDetails}>
-                          <Text style={[styles.attTitle, { color: '#ffffff' }]} numberOfLines={1}>
-                            {att.title}
-                          </Text>
-                          {att.size && (
-                            <Text style={styles.attSub}>{att.size}</Text>
-                          )}
-                        </View>
-                      </View>
-                    ))}
+                    {msg.attachments.map((att, i) => <MaterialView key={att.id || i} item={att} />)}
                   </View>
                 )}
 
@@ -215,19 +236,19 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
       </ScrollView>
 
       {/* Input Bar */}
+        {attachments.length > 0 && <ScrollView horizontal style={{ maxHeight: 52 }} keyboardShouldPersistTaps="handled">{attachments.map(item => <Pressable key={item.id} onPress={() => setAttachments(current => current.filter(value => value.id !== item.id))} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 14 }}><Text translate={false} numberOfLines={1} style={{ color: colors.accent, maxWidth: 180 }}>{item.title}</Text><X size={16} color={colors.textMuted} /></Pressable>)}</ScrollView>}
         <View style={[styles.inputBar, { backgroundColor: colors.canvasElevated, borderTopColor: colors.divider }]}>
           <TouchableOpacity
             activeOpacity={0.7}
-            onPress={() => {
-              try { Haptics.selectionAsync(); } catch (e) {}
-            }}
+            accessibilityLabel="Добавить вложение"
+            onPress={() => setShowAttachmentPicker(true)}
             style={[styles.attachBtn, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder }]}
           >
             <Paperclip size={20} color={colors.textSecondary} />
           </TouchableOpacity>
 
           <TextInput
-            value={inputText}
+            maxLength={10000} value={inputText}
             onChangeText={setInputText}
             placeholder="Сообщение..."
             placeholderTextColor={colors.textMuted}
@@ -242,20 +263,20 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
             ]}
           />
 
-          <TouchableOpacity
+          {(inputText.trim() || attachments.length) ? <TouchableOpacity
             activeOpacity={0.7}
-            onPress={handleSend}
-            disabled={!inputText.trim()}
+            onPress={() => void send().catch(() => Alert.alert('Не удалось отправить', 'Попробуйте ещё раз.'))}
+            disabled={busy}
             accessibilityLabel="Отправить сообщение"
             style={[
               styles.sendBtn,
               {
-                backgroundColor: inputText.trim().length > 0 ? colors.accent : colors.tagBg,
+                backgroundColor: colors.accent,
               },
             ]}
           >
             <Send size={18} color="#ffffff" />
-          </TouchableOpacity>
+          </TouchableOpacity> : <Pressable accessibilityLabel={recordMode === 'voice' ? 'Голосовое сообщение: удерживайте для записи, нажмите для видео' : 'Видеосообщение: удерживайте для записи, нажмите для голосового'} onPressIn={() => { heldLong.current = false; }} onLongPress={() => { heldLong.current = true; recorder.current?.start(recordMode); }} delayLongPress={280} onPressOut={() => { if (heldLong.current) recorder.current?.release(); }} onPress={() => { if (!heldLong.current) setRecordMode(recordMode === 'voice' ? 'videoNote' : 'voice'); }} style={[styles.sendBtn, { backgroundColor: colors.accentLight }]}>{recordMode === 'voice' ? <Mic color={colors.accent} size={23} /> : <Video color={colors.accent} size={23} />}</Pressable>}
         </View>
       </KeyboardAvoidingView>
 
@@ -269,7 +290,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
             {title || groupMeta?.name || 'Беседа'}
           </Text>
           <Text style={[styles.modalFaculty, { color: colors.textSecondary }]}>
-            {groupMeta?.specialty || 'Демонстрационный разговор на этом устройстве'}
+            {groupMeta?.specialty || 'Личная беседа'}
           </Text>
 
           {groupMeta && <View style={styles.statGrid}>
@@ -296,6 +317,8 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
           </View>}
         </View>
       </GlassModal>
+      <GlassModal visible={showAttachmentPicker} onClose={() => setShowAttachmentPicker(false)}><Text style={{ color: colors.textPrimary, fontSize: 22, fontWeight: '700', marginBottom: 18 }}>Добавить вложение</Text><Pressable onPress={() => void attach('media')} style={{ paddingVertical: 16 }}><Text style={{ color: colors.accent, fontSize: 17 }}>Фото / видео</Text></Pressable><Pressable onPress={() => void attach('document')} style={{ paddingVertical: 16 }}><Text style={{ color: colors.accent, fontSize: 17 }}>Документ</Text></Pressable></GlassModal>
+      <ChatRecorder ref={recorder} onSend={item => send(item)} />
     </View>
   );
 };

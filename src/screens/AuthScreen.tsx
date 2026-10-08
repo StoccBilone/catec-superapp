@@ -1,14 +1,6 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  Platform,
-  Alert,
-} from 'react-native';
+import { View, StyleSheet, ScrollView, Platform } from "react-native";
+import { Text, TextInput, TouchableOpacity, Alert } from "../components/Typography";
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { Shield, ArrowRight, Check, KeyRound, Delete, UserCheck } from 'lucide-react-native';
@@ -21,8 +13,8 @@ import { GlassModal } from '../components/GlassModal';
 
 interface AuthScreenProps {
   existingProfile: UserProfile | null;
-  onSuccessLogin: (profile: UserProfile) => void;
-  onRegisterNew: (profile: UserProfile) => void;
+  onSuccessLogin: (profile: UserProfile) => Promise<void>;
+  onRegisterNew: (profile: UserProfile) => Promise<void>;
 }
 
 export const AuthScreen: React.FC<AuthScreenProps> = ({
@@ -46,9 +38,17 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   // Success modal after registration
   const [generatedCode, setGeneratedCode] = useState<string | null>(null);
   const [registeredProfile, setRegisteredProfile] = useState<UserProfile | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const login = async (profile: UserProfile, register = false) => {
+    if (submitting) return;
+    setSubmitting(true);
+    try { await (register ? onRegisterNew(profile) : onSuccessLogin(profile)); }
+    catch { setPinDigits(''); Alert.alert('Не удалось войти', 'Проверьте подключение к интернету и попробуйте ещё раз.'); }
+    finally { setSubmitting(false); }
+  };
 
   const handleKeyPress = (num: string) => {
-    if (pinDigits.length >= 4) return;
+    if (submitting || pinDigits.length >= 4) return;
     try {
       Haptics.selectionAsync();
     } catch (e) {}
@@ -63,7 +63,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         try {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         } catch (e) {}
-        onSuccessLogin(existingProfile);
+        void login(existingProfile);
       } else {
         try {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -78,7 +78,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   };
 
   const handleDelete = () => {
-    if (pinDigits.length === 0) return;
+    if (submitting || pinDigits.length === 0) return;
     try {
       Haptics.selectionAsync();
     } catch (e) {}
@@ -120,7 +120,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
   const handleFinishRegistration = () => {
     if (registeredProfile) {
-      onRegisterNew(registeredProfile);
+      void login(registeredProfile, true);
     }
   };
 
@@ -139,7 +139,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
           <Text style={[styles.pinTitle, { color: colors.textPrimary }]}>
             Вход в систему
           </Text>
-          <Text style={[styles.pinSub, { color: colors.textSecondary }]}>
+          <Text translate={false} style={[styles.pinSub, { color: colors.textSecondary }]}>
             {existingProfile.fullName} ({existingProfile.group})
           </Text>
 
@@ -251,6 +251,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
             <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>ФАМИЛИЯ</Text>
             <TextInput
               value={lastName}
+              maxLength={48}
               onChangeText={setLastName}
               placeholder="Смирнов"
               placeholderTextColor={colors.textMuted}
@@ -262,6 +263,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
             <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>ИМЯ</Text>
             <TextInput
               value={firstName}
+              maxLength={48}
               onChangeText={setFirstName}
               placeholder="Алексей"
               placeholderTextColor={colors.textMuted}
@@ -376,6 +378,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
           <GlassButton
             title="Перейти к расписанию"
+            disabled={submitting}
             onPress={handleFinishRegistration}
             size="lg"
             variant="primary"

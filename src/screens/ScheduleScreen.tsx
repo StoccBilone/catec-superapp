@@ -1,12 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-} from 'react-native';
+import { View, StyleSheet, ScrollView } from "react-native";
+import { Text, TouchableOpacity, TextInput } from "../components/Typography";
 import * as Haptics from 'expo-haptics';
 import {
   Clock,

@@ -1,15 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import {
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-  Image,
-  Alert,
-} from 'react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import { Modal, ScrollView, StyleSheet, View, Image, KeyboardAvoidingView, Platform, RefreshControl } from "react-native";
+import { useFocusEffect } from 'expo-router';
+import { Text, TextInput, TouchableOpacity, Alert, Pressable } from "../components/Typography";
 import * as Haptics from 'expo-haptics';
 import {
   Bell,
@@ -24,12 +16,16 @@ import {
   Share2,
   X,
 } from 'lucide-react-native';
-import { NewsItem, UserProfile } from '../types';
+import { Material, NewsItem, UserProfile } from '../types';
 import { StorageService } from '../services/storage';
 import { useTheme } from '../theme/themeContext';
 import { StudentPass } from '../components/StudentPass';
 import { ScreenSafeArea as SafeAreaView } from '../components/ScreenSafeArea';
 import { pickPhoto } from '../services/photos';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { pickMaterial } from '../services/materials';
+import { MaterialView } from '../components/MaterialView';
+import { usePreferences } from '../context/PreferencesContext';
 
 interface NewsScreenProps {
   profile: UserProfile;
@@ -52,22 +48,48 @@ export const NewsScreen: React.FC<NewsScreenProps> = ({ profile, onOpenNotificat
   const [topic, setTopic] = useState<NewsItem['category']>('Студенты');
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
-  const [attachment, setAttachment] = useState<'photo' | 'file' | null>(null);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [pickingPhoto, setPickingPhoto] = useState(false);
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [publishing, setPublishing] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const attachMaterial = async (kind: 'media' | 'document') => {
+    if (pickingPhoto) return;
+    if (materials.length + (photoUri ? 1 : 0) >= 5) { Alert.alert('Вложения', 'Можно добавить до 5 вложений.'); return; }
+    setPickingPhoto(true);
+    try { const item = await pickMaterial(kind); if (item) setMaterials(current => [...current, item]); }
+    catch (error) { Alert.alert('Не удалось добавить вложение', error instanceof Error ? error.message : 'Попробуйте ещё раз.'); }
+    finally { setPickingPhoto(false); }
+  };
   const attachPhoto = async () => {
     if (pickingPhoto) return;
+    if (!photoUri && materials.length >= 5) { Alert.alert('Вложения', 'Можно добавить до 5 вложений.'); return; }
     setPickingPhoto(true);
     try {
       const uri = await pickPhoto('post');
-      if (uri) { setPhotoUri(uri); setAttachment('photo'); }
+      if (uri) setPhotoUri(uri);
     } catch { Alert.alert('Не удалось добавить фото', 'Попробуйте выбрать изображение ещё раз.'); }
     finally { setPickingPhoto(false); }
   };
 
-  useEffect(() => {
-    void StorageService.getAllNewsAndPosts().then(setNews);
-  }, []);
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    let loading = false;
+    const load = async () => {
+      if (loading) return;
+      loading = true;
+      try { const items = await StorageService.getAllNewsAndPosts(); if (active) setNews(items); }
+      finally { loading = false; }
+    };
+    void load();
+    const timer = setInterval(() => void load(), 15000);
+    return () => { active = false; clearInterval(timer); };
+  }, []));
+  const refresh = async () => {
+    setRefreshing(true);
+    try { setNews(await StorageService.getAllNewsAndPosts()); }
+    finally { setRefreshing(false); }
+  };
 
   const filteredNews = useMemo(() => news.filter(item => {
     const text = `${item.title} ${item.summary} ${item.content}`.toLocaleLowerCase();
@@ -80,7 +102,9 @@ export const NewsScreen: React.FC<NewsScreenProps> = ({ profile, onOpenNotificat
   };
 
   const publish = async () => {
-    if (!body.trim()) return;
+    if (publishing || (!body.trim() && !photoUri && !materials.length)) return;
+    setPublishing(true);
+    try {
     const post: NewsItem = {
       id: `post-${Date.now()}`,
       title: title.trim() || `Публикация от ${profile.fullName}`,
@@ -95,15 +119,19 @@ export const NewsScreen: React.FC<NewsScreenProps> = ({ profile, onOpenNotificat
       isUserCreated: true,
       avatarUrl: profile.avatarUrl,
       imageUri: photoUri || undefined,
+      attachments: materials,
+      authorId: profile.id,
     };
     const updated = await StorageService.createPost(post);
     setNews(updated);
     setTitle('');
     setBody('');
-    setAttachment(null);
     setPhotoUri(null);
+    setMaterials([]);
     setComposerVisible(false);
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    } catch { Alert.alert('Не удалось опубликовать', 'Черновик сохранён. Попробуйте ещё раз.'); }
+    finally { setPublishing(false); }
   };
 
   const toggleLike = (id: string) => {
@@ -129,7 +157,7 @@ export const NewsScreen: React.FC<NewsScreenProps> = ({ profile, onOpenNotificat
           </View>
         </View>
 
-        <ScrollView contentInsetAdjustmentBehavior="never" showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+        <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={colors.accent} />} contentInsetAdjustmentBehavior="never" showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
           <StudentPass profile={profile} />
           <TouchableOpacity onPress={openComposer} activeOpacity={0.86} style={[styles.startPost, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}>
             <View style={[styles.avatar, { backgroundColor: colors.accentLight }]}>{profile.avatarUrl ? <Image source={{ uri: profile.avatarUrl }} style={styles.avatarPhoto} /> : <Text style={[styles.avatarText, { color: colors.accent }]}>{initials(profile.fullName)}</Text>}</View>
@@ -164,14 +192,15 @@ export const NewsScreen: React.FC<NewsScreenProps> = ({ profile, onOpenNotificat
                 <View style={styles.postContent}>
                   <View style={styles.postTop}>
                     <View style={styles.authorMeta}>
-                      <Text numberOfLines={1} style={[styles.authorName, { color: colors.textPrimary }]}>{item.author}</Text>
+                      <Text translate={false} numberOfLines={1} style={[styles.authorName, { color: colors.textPrimary }]}>{item.author}</Text>
                       <Text style={[styles.authorRole, { color: colors.textMuted }]}>{item.authorRole || 'ЦАТЭК'} · {item.date}</Text>
                     </View>
                     <Text style={[styles.topicText, { color: item.isImportant ? '#8a5c00' : colors.accent }]}>{item.isImportant ? 'Важно' : item.category}</Text>
                   </View>
-                  <Text style={[styles.postTitle, { color: colors.textPrimary }]}>{item.title}</Text>
-                  <Text numberOfLines={4} style={[styles.postBody, { color: colors.textSecondary }]}>{item.content}</Text>
+                  <Text translate={false} style={[styles.postTitle, { color: colors.textPrimary }]}>{item.title}</Text>
+                  <Text translate={false} numberOfLines={4} style={[styles.postBody, { color: colors.textSecondary }]}>{item.content}</Text>
                   {item.imageUri && <Image source={{ uri: item.imageUri }} style={styles.postImage} resizeMode="cover" />}
+                  {item.attachments?.map(material => <MaterialView key={material.id} item={material} />)}
                   <View style={styles.postFooter}>
                     <TouchableOpacity onPress={(event) => { event.stopPropagation(); toggleLike(item.id); }} style={styles.footerAction}>
                       <Heart size={19} color={liked ? '#d84d4d' : colors.textSecondary} fill={liked ? '#d84d4d' : 'none'} />
@@ -188,15 +217,17 @@ export const NewsScreen: React.FC<NewsScreenProps> = ({ profile, onOpenNotificat
       
 
       <ArticleModal article={article} colors={colors} onClose={() => setArticle(null)} />
-      <ComposerModal visible={composerVisible} profile={profile} colors={colors} topic={topic} title={title} body={body} attachment={attachment}
-        photoUri={photoUri} pickingPhoto={pickingPhoto} onPhoto={() => void attachPhoto()} onRemovePhoto={() => { setPhotoUri(null); setAttachment(null); }}
-        onClose={() => setComposerVisible(false)} onTopic={setTopic} onTitle={setTitle} onBody={setBody} onAttachment={setAttachment} onPublish={publish} />
+      <ComposerModal visible={composerVisible} profile={profile} colors={colors} topic={topic} title={title} body={body}
+        materials={materials} publishing={publishing} onMaterial={kind => void attachMaterial(kind)} onRemoveMaterial={id => setMaterials(current => current.filter(item => item.id !== id))}
+        photoUri={photoUri} pickingPhoto={pickingPhoto} onPhoto={() => void attachPhoto()} onRemovePhoto={() => setPhotoUri(null)}
+        onClose={() => { if (!publishing) setComposerVisible(false); }} onTopic={setTopic} onTitle={setTitle} onBody={setBody} onPublish={publish} />
     </View>
   );
 };
 
 function ArticleModal({ article, colors, onClose }: { article: NewsItem | null; colors: ReturnType<typeof useTheme>['colors']; onClose: () => void }) {
-  return <Modal visible={!!article} animationType="slide" onRequestClose={onClose}>
+  const { motionReduced } = usePreferences();
+  return <Modal visible={!!article} animationType={motionReduced ? 'none' : 'slide'} onRequestClose={onClose}>
     <SafeAreaView style={[styles.modalPage, { backgroundColor: colors.canvasElevated }]}>
       <View style={[styles.modalHeader, { borderBottomColor: colors.divider }]}>
         <TouchableOpacity onPress={onClose} style={styles.modalIcon}><ChevronLeft color={colors.textPrimary} size={28} /></TouchableOpacity>
@@ -205,28 +236,31 @@ function ArticleModal({ article, colors, onClose }: { article: NewsItem | null; 
       </View>
       {article && <ScrollView contentContainerStyle={styles.articleContent}>
         <Text style={[styles.articleTopic, { color: colors.accent }]}>{article.category}</Text>
-        <Text style={[styles.articleHeading, { color: colors.textPrimary }]}>{article.title}</Text>
+        <Text translate={false} style={[styles.articleHeading, { color: colors.textPrimary }]}>{article.title}</Text>
         <Text style={[styles.articleByline, { color: colors.textMuted }]}>{article.author} · {article.date}</Text>
         {article.imageUri && <Image source={{ uri: article.imageUri }} style={styles.postImage} resizeMode="cover" />}
-        <Text style={[styles.articleText, { color: colors.textSecondary }]}>{article.content}</Text>
+        {article.attachments?.map(material => <MaterialView key={material.id} item={material} />)}
+        <Text translate={false} style={[styles.articleText, { color: colors.textSecondary }]}>{article.content}</Text>
       </ScrollView>}
     </SafeAreaView>
   </Modal>;
 }
 
 interface ComposerProps {
+  materials: Material[];
+  publishing: boolean;
+  onMaterial: (kind: 'media' | 'document') => void;
+  onRemoveMaterial: (id: string) => void;
   visible: boolean;
   profile: UserProfile;
   colors: ReturnType<typeof useTheme>['colors'];
   topic: NewsItem['category'];
   title: string;
   body: string;
-  attachment: 'photo' | 'file' | null;
   onClose: () => void;
   onTopic: (topic: NewsItem['category']) => void;
   onTitle: (title: string) => void;
   onBody: (body: string) => void;
-  onAttachment: (attachment: 'photo' | 'file') => void;
   onPublish: () => void;
   photoUri: string | null;
   pickingPhoto: boolean;
@@ -235,31 +269,36 @@ interface ComposerProps {
 }
 
 function ComposerModal(props: ComposerProps) {
-  const canPublish = props.body.trim().length > 0;
-  return <Modal visible={props.visible} animationType="slide" onRequestClose={props.onClose}>
-    <SafeAreaView style={[styles.modalPage, { backgroundColor: props.colors.canvasElevated }]}>
+  const insets = useSafeAreaInsets();
+  const { motionReduced } = usePreferences();
+  const canPublish = !props.publishing && (props.body.trim().length > 0 || !!props.photoUri || props.materials.length > 0);
+  return <Modal visible={props.visible} animationType={motionReduced ? 'none' : 'slide'} onRequestClose={props.onClose}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={[styles.modalPage, { backgroundColor: props.colors.canvasElevated }]}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={insets.top}>
       <View style={[styles.modalHeader, { borderBottomColor: props.colors.divider }]}>
         <TouchableOpacity onPress={props.onClose} style={styles.cancelButton}><Text style={[styles.cancelText, { color: props.colors.textSecondary }]}>Отмена</Text></TouchableOpacity>
         <Text style={[styles.modalTitle, { color: props.colors.textPrimary }]}>Новая ветка</Text>
-        <TouchableOpacity disabled={!canPublish} onPress={props.onPublish} style={[styles.publishButton, { backgroundColor: canPublish ? props.colors.accent : '#d9dfda' }]}><Text style={styles.publishText}>Опубликовать</Text></TouchableOpacity>
+        <TouchableOpacity disabled={!canPublish} onPress={props.onPublish} style={[styles.publishButton, { backgroundColor: canPublish ? props.colors.accent : props.colors.inputBorder }]}><Text style={styles.publishText}>Опубликовать</Text></TouchableOpacity>
       </View>
-      <ScrollView automaticallyAdjustKeyboardInsets contentInsetAdjustmentBehavior="never" contentContainerStyle={styles.composerContent} keyboardShouldPersistTaps="handled">
+      <ScrollView style={{ flex: 1 }} contentInsetAdjustmentBehavior="never" automaticallyAdjustKeyboardInsets={false} contentContainerStyle={styles.composerContent} keyboardDismissMode="interactive" keyboardShouldPersistTaps="handled">
         <View style={styles.composerAuthor}>
           <View style={[styles.avatar, { backgroundColor: props.colors.accentLight }]}>{props.profile.avatarUrl ? <Image source={{ uri: props.profile.avatarUrl }} style={styles.avatarPhoto} /> : <Text style={[styles.avatarText, { color: props.colors.accent }]}>{initials(props.profile.fullName)}</Text>}</View>
-          <View><Text style={[styles.authorName, { color: props.colors.textPrimary }]}>{props.profile.fullName}</Text><Text style={[styles.authorRole, { color: props.colors.textMuted }]}>{props.profile.group} · Студент ЦАТЭК</Text></View>
+          <View><Text translate={false} style={[styles.authorName, { color: props.colors.textPrimary }]}>{props.profile.fullName}</Text><Text style={[styles.authorRole, { color: props.colors.textMuted }]}>{props.profile.group} · Студент ЦАТЭК</Text></View>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.composerTopics}>
-          {CATEGORIES.filter(item => item !== 'Все').map(item => <TouchableOpacity key={item} onPress={() => props.onTopic(item)} style={[styles.composerTopic, { backgroundColor: props.topic === item ? props.colors.accentLight : '#f2f4f1', borderColor: props.topic === item ? props.colors.accent : 'transparent' }]}><Text style={{ color: props.topic === item ? props.colors.accent : props.colors.textSecondary, fontWeight: '700', fontSize: 13 }}>{item}</Text></TouchableOpacity>)}
+          {CATEGORIES.filter(item => item !== 'Все').map(item => <TouchableOpacity key={item} onPress={() => props.onTopic(item)} style={[styles.composerTopic, { backgroundColor: props.topic === item ? props.colors.accentLight : props.colors.inputBg, borderColor: props.topic === item ? props.colors.accent : 'transparent' }]}><Text style={{ color: props.topic === item ? props.colors.accent : props.colors.textSecondary, fontWeight: '700', fontSize: 13 }}>{item}</Text></TouchableOpacity>)}
         </ScrollView>
-        <TextInput value={props.title} onChangeText={props.onTitle} placeholder="Заголовок (необязательно)" placeholderTextColor={props.colors.textMuted} style={[styles.composerTitleInput, { color: props.colors.textPrimary, borderBottomColor: props.colors.divider }]} />
-        <TextInput value={props.body} onChangeText={props.onBody} multiline autoFocus placeholder="Что нового?" placeholderTextColor={props.colors.textMuted} textAlignVertical="top" style={[styles.composerBodyInput, { color: props.colors.textPrimary }]} />
+        <TextInput maxLength={160} value={props.title} onChangeText={props.onTitle} placeholder="Заголовок (необязательно)" placeholderTextColor={props.colors.textMuted} style={[styles.composerTitleInput, { color: props.colors.textPrimary, borderBottomColor: props.colors.divider }]} />
+        <TextInput maxLength={10000} value={props.body} onChangeText={props.onBody} multiline autoFocus placeholder="Что нового?" placeholderTextColor={props.colors.textMuted} textAlignVertical="top" style={[styles.composerBodyInput, { color: props.colors.textPrimary }]} />
         {props.photoUri && <View style={{ position: 'relative' }}><Image source={{ uri: props.photoUri }} style={styles.postImage} resizeMode="cover" /><TouchableOpacity accessibilityLabel="Удалить фото из черновика" onPress={props.onRemovePhoto} style={styles.removePhoto}><X color="#fff" size={18} /></TouchableOpacity></View>}
-        <View style={[styles.attachmentPanel, { borderTopColor: props.colors.divider }]}>
-          <TouchableOpacity disabled={props.pickingPhoto} onPress={props.onPhoto} style={styles.attachmentButton}><ImageIcon color={props.colors.accent} size={21} /><Text style={[styles.attachmentText, { color: props.colors.textSecondary }]}>{props.pickingPhoto ? 'Загрузка...' : props.photoUri ? 'Сменить фото' : 'Фото'}</Text></TouchableOpacity>
-          <TouchableOpacity onPress={() => props.onAttachment('file')} style={styles.attachmentButton}><FileText color={props.colors.accent} size={21} /><Text style={[styles.attachmentText, { color: props.colors.textSecondary }]}>{props.attachment === 'file' ? 'Файл выбран' : 'Файл'}</Text></TouchableOpacity>
-          <View style={styles.attachmentButton}><Paperclip color={props.colors.textMuted} size={21} /><Text style={[styles.attachmentText, { color: props.colors.textSecondary }]}>Вложение</Text></View>
-        </View>
+        {props.materials.map(item => <View key={item.id}><MaterialView item={item} /><Pressable accessibilityLabel="Удалить вложение" onPress={() => props.onRemoveMaterial(item.id)} style={{ alignSelf: 'flex-end', padding: 10 }}><X color={props.colors.textMuted} size={18} /></Pressable></View>)}
       </ScrollView>
+        <View style={[styles.attachmentPanel, { borderTopColor: props.colors.divider, backgroundColor: props.colors.canvasElevated, paddingHorizontal: 22, paddingBottom: Math.max(insets.bottom, 12), paddingTop: 12, justifyContent: 'space-around', flexShrink: 0 }]}>
+          <TouchableOpacity disabled={props.pickingPhoto} onPress={props.onPhoto} style={styles.attachmentButton}><ImageIcon color={props.colors.accent} size={21} /><Text style={[styles.attachmentText, { color: props.colors.textSecondary }]}>{props.pickingPhoto ? 'Загрузка...' : props.photoUri ? 'Сменить фото' : 'Фото'}</Text></TouchableOpacity>
+          <TouchableOpacity disabled={props.pickingPhoto} onPress={() => props.onMaterial('document')} style={styles.attachmentButton}><FileText color={props.colors.accent} size={21} /><Text style={[styles.attachmentText, { color: props.colors.textSecondary }]}>Файл</Text></TouchableOpacity>
+          <TouchableOpacity disabled={props.pickingPhoto} onPress={() => props.onMaterial('media')} style={styles.attachmentButton}><Paperclip color={props.colors.accent} size={21} /><Text style={[styles.attachmentText, { color: props.colors.textSecondary }]}>Фото / видео</Text></TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   </Modal>;
 }

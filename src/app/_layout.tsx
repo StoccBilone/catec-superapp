@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { ActivityIndicator, Appearance, Platform, View } from 'react-native';
+import React from 'react';
+import { ActivityIndicator, View } from 'react-native';
 import { Stack, ThemeProvider as NavigationThemeProvider, DarkTheme, DefaultTheme } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import AppProviders from '../../App';
@@ -11,10 +11,6 @@ function Navigation() {
   const { colors, mode } = useTheme();
   const { profile, isLoggedIn, isLoading, showNotifications, closeNotifications } = useCampus();
   const authenticated = isLoggedIn && !!profile;
-
-  useEffect(() => {
-    if (Platform.OS !== 'web') Appearance.setColorScheme(mode);
-  }, [mode]);
 
   if (isLoading) {
     return (

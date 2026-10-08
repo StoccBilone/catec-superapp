@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, StyleSheet } from "react-native";
+import { Text, TouchableOpacity } from "./Typography";
 import { Bell } from 'lucide-react-native';
 import { useTheme } from '../theme/themeContext';
 

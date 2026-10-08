@@ -3,6 +3,7 @@ export type UserRole = 'student' | 'teacher';
 export interface UserProfile {
   id: string;
   fullName: string;
+  cloudId?: string;
   role: UserRole;
   group: string; // "П4 А", "П4 Б/У", "П4 В", "П4 Г", "П4 К", "ИС4А", "СИБ4А/У", "СИБ4Б", "РОБ4А", "ВМ4А/Б", "ВТ4А", "ВТ4Б"
   studentId: string; // 4 цифры: например "4092"
@@ -10,6 +11,7 @@ export interface UserProfile {
   course: number; // 4
   avatarUrl?: string;
   coverUrl?: string;
+  bio?: string;
   bannerId?: string; // id выбранного баннера
   faculty: string;
   averageGrade: number;
@@ -44,6 +46,8 @@ export interface NewsItem {
   authorRole?: string;
   avatarUrl?: string;
   imageUri?: string;
+  attachments?: Material[];
+  authorId?: string;
   readTimeMin?: number;
   likes: number;
   commentsCount?: number;
@@ -60,11 +64,18 @@ export interface ChatMessage {
   text: string;
   createdAt: string;
   isOwn?: boolean;
-  attachments?: {
-    title: string;
-    type: 'pdf' | 'doc' | 'image' | 'link';
-    size?: string;
-  }[];
+  attachments?: Material[];
+}
+
+export interface Material {
+  id: string;
+  title: string;
+  type: 'pdf' | 'doc' | 'image' | 'link' | 'video' | 'voice' | 'videoNote';
+  uri?: string;
+  mimeType?: string;
+  size?: string;
+  duration?: number;
+  storagePath?: string;
 }
 
 export interface CollegeGroup {

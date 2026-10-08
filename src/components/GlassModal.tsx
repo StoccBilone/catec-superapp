@@ -1,146 +1,40 @@
-import React from 'react';
-import {
-  Modal,
-  View,
-  StyleSheet,
-  TouchableOpacity,
-  TouchableWithoutFeedback,
-  ScrollView,
-  Platform,
-  KeyboardAvoidingView,
-} from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Animated, Easing, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, View, useWindowDimensions } from "react-native";
+import { Pressable } from "./Typography";
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BlurView } from 'expo-blur';
 import { X } from 'lucide-react-native';
 import { useTheme } from '../theme/themeContext';
+import { usePreferences } from '../context/PreferencesContext';
 
-interface GlassModalProps {
-  visible: boolean;
-  onClose: () => void;
-  title?: string;
-  children: React.ReactNode;
-}
-
-export const GlassModal: React.FC<GlassModalProps> = ({
-  visible,
-  onClose,
-  title,
-  children,
-}) => {
+interface GlassModalProps { visible: boolean; onClose: () => void; title?: string; children: React.ReactNode; }
+export function GlassModal({ visible, onClose, children }: GlassModalProps) {
   const { colors, mode } = useTheme();
-  const isDark = mode === 'dark';
+  const { motionReduced } = usePreferences();
   const insets = useSafeAreaInsets();
-
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
-    >
-      <TouchableWithoutFeedback onPress={onClose}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.backdrop, { paddingTop: Math.max(insets.top, Platform.OS === 'web' ? 54 : 0) + 12 }]}>
-          {Platform.OS === 'ios' ? (
-            <BlurView
-              intensity={isDark ? 28 : 20}
-              tint={isDark ? 'dark' : 'light'}
-              style={StyleSheet.absoluteFill}
-            />
-          ) : (
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? 'rgba(0,0,0,0.7)' : 'rgba(0,0,0,0.4)' }]} />
-          )}
-
-          <TouchableWithoutFeedback>
-            <View
-              style={[
-                styles.sheetContainer,
-                {
-                  backgroundColor: colors.canvasElevated,
-                  borderColor: colors.cardBorderHighlight,
-                  paddingBottom: Math.max(insets.bottom, 12),
-                },
-              ]}
-            >
-              {/* iOS Pull Bar / Grabber */}
-              <View style={styles.grabberWrapper}>
-                <View
-                  style={[
-                    styles.grabber,
-                    { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.25)' : 'rgba(0, 0, 0, 0.2)' },
-                  ]}
-                />
-              </View>
-
-              {/* Close Button top-right */}
-              <TouchableOpacity
-                style={[styles.closeButton, { backgroundColor: colors.inputBg }]}
-                activeOpacity={0.7}
-                onPress={onClose}
-              >
-                <X size={18} color={colors.textSecondary} />
-              </TouchableOpacity>
-
-              <ScrollView
-                keyboardShouldPersistTaps="handled"
-                style={styles.scrollArea}
-                contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
-              >
-                {children}
-              </ScrollView>
-            </View>
-          </TouchableWithoutFeedback>
-        </KeyboardAvoidingView>
-      </TouchableWithoutFeedback>
-    </Modal>
-  );
-};
-
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
-  sheetContainer: {
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    borderTopWidth: 1,
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
-    maxHeight: '88%',
-    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
-    elevation: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 18,
-  },
-  grabberWrapper: {
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  grabber: {
-    width: 38,
-    height: 4.5,
-    borderRadius: 2.5,
-  },
-  closeButton: {
-    position: 'absolute',
-    top: 14,
-    right: 18,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 10,
-  },
-  scrollArea: {
-    maxHeight: '100%',
-  },
-  scrollContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 24,
-  },
-});
+  const { height } = useWindowDimensions();
+  const [mounted, setMounted] = useState(false);
+  const [progress] = useState(() => new Animated.Value(0));
+  useEffect(() => {
+    const animation = Animated.timing(progress, {
+      toValue: visible ? 1 : 0, duration: motionReduced ? 0 : visible ? 280 : 200,
+      easing: Easing.out(Easing.cubic), useNativeDriver: true,
+    });
+    animation.start(({ finished }) => { if (finished && !visible) setMounted(false); });
+    return () => animation.stop();
+  }, [visible, motionReduced, progress]);
+  return <Modal visible={visible || mounted} onShow={() => setMounted(true)} transparent animationType="none" statusBarTranslucent onRequestClose={onClose}>
+    <View style={styles.root}>
+      <Animated.View style={[StyleSheet.absoluteFill, { opacity: progress, backgroundColor: mode === 'dark' ? 'rgba(0,0,0,0.58)' : 'rgba(12,23,36,0.32)' }]}>
+        <Pressable accessibilityLabel="Закрыть окно" onPress={onClose} style={StyleSheet.absoluteFill} />
+      </Animated.View>
+      <KeyboardAvoidingView pointerEvents="box-none" behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.position, { paddingTop: Math.max(insets.top, Platform.OS === 'web' ? 54 : 0) + 12 }]}>
+        <Animated.View style={[styles.sheet, { backgroundColor: colors.canvasElevated, paddingBottom: Math.max(insets.bottom, 12), transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [height, 0] }) }] }]}>
+          <View style={styles.grabber}><View style={[styles.handle, { backgroundColor: colors.textMuted }]} /></View>
+          <Pressable accessibilityLabel="Закрыть окно" onPress={onClose} style={[styles.close, { backgroundColor: colors.inputBg }]}><X size={18} color={colors.textSecondary} /></Pressable>
+          <ScrollView bounces={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>{children}</ScrollView>
+        </Animated.View>
+      </KeyboardAvoidingView>
+    </View>
+  </Modal>;
+}
+const styles = StyleSheet.create({ root: { flex: 1 }, position: { flex: 1, justifyContent: 'flex-end' }, sheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: '92%', overflow: 'hidden' }, grabber: { alignItems: 'center', paddingVertical: 14 }, handle: { width: 38, height: 5, borderRadius: 3, opacity: 0.35 }, close: { position: 'absolute', top: 14, right: 18, width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', zIndex: 1 }, content: { paddingHorizontal: 20, paddingBottom: 24 } });

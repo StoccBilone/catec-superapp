@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, StyleSheet } from "react-native";
+import { Text } from "./Typography";
 import { Bell, Calendar, AlertTriangle, Sparkles } from 'lucide-react-native';
 import { GlassModal } from './GlassModal';
 import { GlassCard } from './GlassCard';

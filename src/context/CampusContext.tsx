@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { StorageService } from '../services/storage';
 import { UserProfile } from '../types';
+import { cloud } from '../services/cloud';
 
 interface CampusState {
   profile: UserProfile | null;
@@ -30,6 +31,10 @@ export function CampusProvider({ children }: { children: React.ReactNode }) {
         const [stored, logged] = await Promise.all([
           StorageService.getUserProfile(), StorageService.isUserLoggedIn(),
         ]);
+        if (stored && logged) {
+          try { await StorageService.saveUserProfile(stored); }
+          catch { console.warn('Profile sync unavailable; using saved profile.'); }
+        }
         if (mounted) {
           setProfile(stored);
           setIsLoggedIn(logged && !!stored);
@@ -45,7 +50,15 @@ export function CampusProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const authenticate = async (userProfile: UserProfile) => {
-    await StorageService.saveUserProfile(userProfile);
+    if (profile && profile.id !== userProfile.id) {
+      const { error } = await cloud.auth.signOut({ scope: 'local' });
+      if (error) throw error;
+    }
+    try { await StorageService.saveUserProfile(userProfile); }
+    catch (error) {
+      // An existing PIN unlocks this device even without a network connection.
+      if (!profile || profile.id !== userProfile.id || profile.passCode !== userProfile.passCode) throw error;
+    }
     await StorageService.setLoggedIn(true);
     setProfile(userProfile);
     setIsLoggedIn(true);

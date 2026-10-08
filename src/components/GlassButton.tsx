@@ -1,5 +1,6 @@
 import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, ViewStyle, TextStyle, View, ActivityIndicator } from 'react-native';
+import { StyleSheet, ViewStyle, TextStyle, View, ActivityIndicator } from "react-native";
+import { TouchableOpacity, Text } from "./Typography";
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { LiquidTheme } from '../theme/liquidTheme';

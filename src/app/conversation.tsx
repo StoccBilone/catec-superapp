@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Text, TouchableOpacity } from 'react-native';
+import { ActivityIndicator } from "react-native";
+import { Text, TouchableOpacity } from "../components/Typography";
 import { ScreenSafeArea as SafeAreaView } from '../components/ScreenSafeArea';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ChatScreen } from '../screens/ChatScreen';
@@ -19,6 +20,6 @@ export default function ConversationRoute() {
     return () => { active = false; };
   }, [id, profile]);
   return <SafeAreaView style={{ flex: 1, backgroundColor: colors.canvas }}>
-    {loading ? <ActivityIndicator color={colors.accent} /> : room && profile ? <ChatScreen profile={{ ...profile, group: room.storageKey }} title={room.title} onBack={() => router.back()} onOpenNotifications={openNotifications} /> : <TouchableOpacity onPress={() => router.back()}><Text style={{ padding: 24, color: colors.accent }}>Беседа недоступна. Вернуться</Text></TouchableOpacity>}
+    {loading ? <ActivityIndicator color={colors.accent} /> : room && profile ? <ChatScreen profile={{ ...profile, group: room.storageKey }} groupName={room.collegeGroup} title={room.title} onBack={() => router.back()} onOpenNotifications={openNotifications} /> : <TouchableOpacity onPress={() => router.back()}><Text style={{ padding: 24, color: colors.accent }}>Беседа недоступна. Вернуться</Text></TouchableOpacity>}
   </SafeAreaView>;
 }

@@ -1,17 +1,17 @@
 {
   "expo": {
-    "name": "Campus Hub",
+    "name": "CATEC SuperApp",
     "slug": "campus-ios",
     "scheme": "campushub",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "backgroundColor": "#ffffff",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.campushub.ios",
-      "userInterfaceStyle": "light"
+      "userInterfaceStyle": "automatic"
     },
     "android": {
       "adaptiveIcon": {
@@ -27,11 +27,18 @@
     },
     "plugins": [
       "expo-router",
-      ["expo-image-picker", {
-        "photosPermission": "Выберите фото для профиля или публикации ЦАТЭК.",
-        "cameraPermission": false,
-        "microphonePermission": false
-      }]
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Выберите фото для профиля или публикации ЦАТЭК.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
+      ["expo-audio", { "microphonePermission": "Разрешите запись голосовых сообщений." }],
+      ["expo-camera", { "cameraPermission": "Разрешите запись видеосообщений.", "microphonePermission": "Разрешите запись звука для видеосообщений.", "recordAudioAndroid": true }],
+      "expo-video",
+      "expo-sharing"
     ]
   }
 }
