@@ -6,7 +6,7 @@ import { useCampus } from '../context/CampusContext';
 export default function AuthRoute() {
   const { profile, authenticate } = useCampus();
   return (
-    <CampusScreen>
+    <CampusScreen bottomInset={false}>
       <AuthScreen existingProfile={profile} onSuccessLogin={authenticate} onRegisterNew={authenticate} />
     </CampusScreen>
   );

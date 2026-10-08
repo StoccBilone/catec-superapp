@@ -9,6 +9,7 @@ export interface UserProfile {
   passCode: string; // 4-значный код авторизации: "4092"
   course: number; // 4
   avatarUrl?: string;
+  coverUrl?: string;
   bannerId?: string; // id выбранного баннера
   faculty: string;
   averageGrade: number;
@@ -42,6 +43,7 @@ export interface NewsItem {
   author: string;
   authorRole?: string;
   avatarUrl?: string;
+  imageUri?: string;
   readTimeMin?: number;
   likes: number;
   commentsCount?: number;

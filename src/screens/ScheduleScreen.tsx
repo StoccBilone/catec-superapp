@@ -110,6 +110,7 @@ export const ScheduleScreen: React.FC<ScheduleScreenProps> = ({
       />
 
       <ScrollView
+        contentInsetAdjustmentBehavior="never"
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
@@ -162,7 +163,7 @@ export const ScheduleScreen: React.FC<ScheduleScreenProps> = ({
                   style={[
                     styles.dayLabel,
                     { color: isSelected ? colors.accent : colors.textSecondary },
-                    isSelected && { fontWeight: '800' },
+                    isSelected && { fontWeight: '700' },
                   ]}
                 >
                   {day.label}
@@ -420,7 +421,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 110,
+    paddingBottom: 28,
   },
   groupBarRow: {
     flexDirection: 'row',
@@ -448,7 +449,7 @@ const styles = StyleSheet.create({
   },
   semesterText: {
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '700',
     letterSpacing: 0.5,
   },
   daysContainer: {
@@ -511,7 +512,7 @@ const styles = StyleSheet.create({
   },
   pairNumberText: {
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   timeRow: {
     flexDirection: 'row',
@@ -600,11 +601,11 @@ const styles = StyleSheet.create({
   },
   modalTimeText: {
     fontSize: 15,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   modalSubject: {
     fontSize: 20,
-    fontWeight: '800',
+    fontWeight: '700',
     lineHeight: 26,
     marginBottom: 16,
   },
@@ -637,7 +638,7 @@ const styles = StyleSheet.create({
   },
   notesTitle: {
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '700',
     letterSpacing: 0.8,
     marginBottom: 8,
   },
@@ -651,7 +652,7 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: '800',
+    fontWeight: '700',
     marginBottom: 4,
   },
   modalSub: {
@@ -673,7 +674,7 @@ const styles = StyleSheet.create({
   },
   modalGroupName: {
     fontSize: 15,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   modalGroupSpecialty: {
     fontSize: 10,

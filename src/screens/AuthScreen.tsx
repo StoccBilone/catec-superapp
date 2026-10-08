@@ -223,6 +223,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   return (
     <View style={[styles.container, { backgroundColor: colors.canvas }]}>
       <ScrollView
+        automaticallyAdjustKeyboardInsets
+        contentInsetAdjustmentBehavior="never"
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
@@ -407,7 +409,7 @@ const styles = StyleSheet.create({
   },
   regCollegeName: {
     fontSize: 22,
-    fontWeight: '800',
+    fontWeight: '700',
     letterSpacing: 1.2,
   },
   regSubtitle: {
@@ -420,7 +422,7 @@ const styles = StyleSheet.create({
   },
   inputGroupTitle: {
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '700',
     letterSpacing: 0.8,
     marginBottom: 8,
   },
@@ -466,7 +468,7 @@ const styles = StyleSheet.create({
   },
   groupTileName: {
     fontSize: 15,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   groupTileSub: {
     fontSize: 10,
@@ -516,12 +518,12 @@ const styles = StyleSheet.create({
   },
   catecLabel: {
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '700',
     letterSpacing: 1,
   },
   pinTitle: {
     fontSize: 26,
-    fontWeight: '800',
+    fontWeight: '700',
     marginBottom: 4,
   },
   pinSub: {
@@ -593,7 +595,7 @@ const styles = StyleSheet.create({
   },
   codeModalTitle: {
     fontSize: 20,
-    fontWeight: '800',
+    fontWeight: '700',
     marginBottom: 6,
   },
   codeModalDesc: {
@@ -611,7 +613,7 @@ const styles = StyleSheet.create({
   },
   codeText: {
     fontSize: 36,
-    fontWeight: '800',
+    fontWeight: '700',
     letterSpacing: 8,
   },
   codeNotice: {

@@ -170,7 +170,7 @@ const styles = StyleSheet.create({
   institutionTitle: {
     color: LiquidTheme.colors.textHighlight,
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: '700',
     letterSpacing: 0.8,
   },
   institutionSub: {
@@ -198,7 +198,7 @@ const styles = StyleSheet.create({
   avatarText: {
     color: LiquidTheme.colors.cyan,
     fontSize: 20,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   detailsCol: {
     flex: 1,
@@ -263,7 +263,6 @@ const styles = StyleSheet.create({
     color: LiquidTheme.colors.textHighlight,
     fontSize: 12,
     fontWeight: '700',
-    fontFamily: 'Courier',
   },
   statusCol: {},
   statusPill: {
@@ -286,7 +285,7 @@ const styles = StyleSheet.create({
   statusText: {
     color: LiquidTheme.colors.emerald,
     fontSize: 9,
-    fontWeight: '800',
+    fontWeight: '700',
     letterSpacing: 0.4,
   },
   qrIconWrapper: {

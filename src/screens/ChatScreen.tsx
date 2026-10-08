@@ -17,24 +17,29 @@ import {
   FileText,
   Shield,
   Info,
+  ChevronLeft,
 } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChatMessage, UserProfile } from '../types';
 import { CATEC_GROUPS } from '../data/catecData';
 import { StorageService } from '../services/storage';
 import { useTheme } from '../theme/themeContext';
-import { GlassHeader } from '../components/GlassHeader';
 import { GlassModal } from '../components/GlassModal';
 
 interface ChatScreenProps {
   profile: UserProfile;
   onOpenNotifications: () => void;
+  title?: string;
+  onBack?: () => void;
 }
 
 export const ChatScreen: React.FC<ChatScreenProps> = ({
   profile,
-  onOpenNotifications,
+  title,
+  onBack,
 }) => {
-  const { colors, mode } = useTheme();
+  const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [showInfoModal, setShowInfoModal] = useState(false);
@@ -42,19 +47,13 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
 
   const groupMeta = CATEC_GROUPS.find(
     (g) => g.name.toLowerCase() === profile.group.toLowerCase()
-  ) || CATEC_GROUPS[0];
+  );
 
   useEffect(() => {
-    loadMessages();
+    let active = true;
+    void StorageService.getChatMessages(profile.group).then(list => { if (active) setMessages(list); });
+    return () => { active = false; };
   }, [profile.group]);
-
-  const loadMessages = async () => {
-    const list = await StorageService.getChatMessages(profile.group);
-    setMessages(list);
-    setTimeout(() => {
-      scrollViewRef.current?.scrollToEnd({ animated: true });
-    }, 150);
-  };
 
   const handleSend = async () => {
     if (!inputText.trim()) return;
@@ -90,15 +89,14 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
 
   return (
     <View style={[styles.container, { backgroundColor: colors.canvas }]}>
-      <GlassHeader
-        title={`Беседа ${profile.group}`}
-        subtitle="Чат учебной группы"
-        rightBadge={`${groupMeta.studentCount} студ.`}
-        onNotificationPress={onOpenNotifications}
-      />
+      <View style={[styles.conversationHeader, { borderBottomColor: colors.divider }]}>
+        <TouchableOpacity onPress={onBack} accessibilityLabel="Назад к чатам" style={styles.backButton}><ChevronLeft color={colors.accent} size={28} /></TouchableOpacity>
+        <View style={{ flex: 1 }}><Text numberOfLines={1} style={[styles.conversationTitle, { color: colors.textPrimary }]}>{title || profile.group}</Text><Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 3 }}>{groupMeta ? `${groupMeta.studentCount} студентов` : 'Локальная демобеседа'}</Text></View>
+        <TouchableOpacity onPress={() => setShowInfoModal(true)} style={styles.backButton} accessibilityLabel="О беседе"><Info color={colors.textSecondary} size={22} /></TouchableOpacity>
+      </View>
 
       {/* Subheader: Curator Info Bar */}
-      <View style={[styles.groupSubHeader, { borderBottomColor: colors.divider }]}>
+      {groupMeta && <View style={[styles.groupSubHeader, { borderBottomColor: colors.divider }]}>
         <View style={styles.subLeft}>
           <Users size={16} color={colors.accent} />
           <Text style={[styles.curatorText, { color: colors.textSecondary }]}>
@@ -113,10 +111,16 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
         >
           <Info size={16} color={colors.textSecondary} />
         </TouchableOpacity>
-      </View>
+      </View>}
 
       {/* Message Feed */}
+      <KeyboardAvoidingView style={{ flex: 1, overflow: 'hidden' }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={insets.top}>
       <ScrollView
+        style={{ flex: 1, overflow: 'hidden' }}
+        contentInsetAdjustmentBehavior="never"
+        automaticallyAdjustKeyboardInsets={false}
+        keyboardDismissMode="interactive"
+        keyboardShouldPersistTaps="handled"
         ref={scrollViewRef}
         contentContainerStyle={styles.messagesContainer}
         showsVerticalScrollIndicator={false}
@@ -211,10 +215,6 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
       </ScrollView>
 
       {/* Input Bar */}
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 95 : 0}
-      >
         <View style={[styles.inputBar, { backgroundColor: colors.canvasElevated, borderTopColor: colors.divider }]}>
           <TouchableOpacity
             activeOpacity={0.7}
@@ -229,7 +229,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
           <TextInput
             value={inputText}
             onChangeText={setInputText}
-            placeholder={`Сообщение в группу ${profile.group}...`}
+            placeholder="Сообщение..."
             placeholderTextColor={colors.textMuted}
             multiline
             style={[
@@ -245,6 +245,8 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
           <TouchableOpacity
             activeOpacity={0.7}
             onPress={handleSend}
+            disabled={!inputText.trim()}
+            accessibilityLabel="Отправить сообщение"
             style={[
               styles.sendBtn,
               {
@@ -264,13 +266,13 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
       >
         <View style={styles.modalBody}>
           <Text style={[styles.modalHeaderTitle, { color: colors.textPrimary }]}>
-            Группа {groupMeta.name}
+            {title || groupMeta?.name || 'Беседа'}
           </Text>
           <Text style={[styles.modalFaculty, { color: colors.textSecondary }]}>
-            {groupMeta.specialty}
+            {groupMeta?.specialty || 'Демонстрационный разговор на этом устройстве'}
           </Text>
 
-          <View style={styles.statGrid}>
+          {groupMeta && <View style={styles.statGrid}>
             <View style={[styles.statBox, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}>
               <Text style={[styles.statNumber, { color: colors.accent }]}>{groupMeta.studentCount}</Text>
               <Text style={[styles.statLabel, { color: colors.textMuted }]}>Студентов</Text>
@@ -283,15 +285,15 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
               <Text style={[styles.statNumber, { color: colors.accent }]}>7</Text>
               <Text style={[styles.statLabel, { color: colors.textMuted }]}>Семестр</Text>
             </View>
-          </View>
+          </View>}
 
-          <View style={[styles.curatorCard, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}>
+          {groupMeta && <View style={[styles.curatorCard, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}>
             <Shield size={20} color={colors.accent} />
             <View style={{ flex: 1, marginLeft: 10 }}>
               <Text style={[styles.curatorCardTitle, { color: colors.textMuted }]}>Куратор группы</Text>
               <Text style={[styles.curatorCardName, { color: colors.textPrimary }]}>{groupMeta.curator}</Text>
             </View>
-          </View>
+          </View>}
         </View>
       </GlassModal>
     </View>
@@ -299,10 +301,14 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
 };
 
 const styles = StyleSheet.create({
+  conversationHeader: { flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 10, borderBottomWidth: StyleSheet.hairlineWidth },
+  conversationTitle: { fontSize: 18, fontWeight: '700' },
+  backButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   container: {
     flex: 1,
   },
   groupSubHeader: {
+    flexShrink: 0,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -311,11 +317,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   subLeft: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
   curatorText: {
+    flexShrink: 1,
     fontSize: 12,
     fontWeight: '600',
   },
@@ -375,8 +383,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   messageText: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 17,
+    lineHeight: 23,
   },
   timeText: {
     fontSize: 10,
@@ -443,7 +451,7 @@ const styles = StyleSheet.create({
   },
   modalHeaderTitle: {
     fontSize: 22,
-    fontWeight: '800',
+    fontWeight: '700',
     marginBottom: 4,
   },
   modalFaculty: {
@@ -464,7 +472,7 @@ const styles = StyleSheet.create({
   },
   statNumber: {
     fontSize: 20,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   statLabel: {
     fontSize: 11,

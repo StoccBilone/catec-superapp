@@ -178,7 +178,7 @@ export const CATEC_NEWS: NewsItem[] = [
 ];
 
 export const PROFILE_BANNERS = [
-  { id: 'catec_blue', title: 'ЦАТЭК Алматы (Official Blue)', colors: ['#0f172a', '#0369a1', '#0284c7'] },
+  { id: 'catec_blue', title: 'ЦАТЭК · Голубой', colors: ['#76bbe5', '#c4e5f7', '#edf7fd'] },
   { id: 'almaty_cyber', title: 'Almaty Tech Cyber', colors: ['#09090b', '#4c1d95', '#06b6d4'] },
   { id: 'kazakhstan_ai', title: 'Kazakhstan AI Hub', colors: ['#064e3b', '#047857', '#10b981'] },
   { id: 'dark_obsidian', title: 'Dark Obsidian Minimal', colors: ['#0a0a0a', '#18181b', '#27272a'] },

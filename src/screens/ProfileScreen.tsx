@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -16,14 +17,11 @@ import {
   GraduationCap,
   LogOut,
   Sun,
-  Shield,
   Users,
   Image as ImageIcon,
   KeyRound,
-  QrCode,
-  Wifi,
 } from 'lucide-react-native';
-import { UserProfile } from '../types';
+import { NewsItem, UserProfile } from '../types';
 import { CATEC_GROUPS, PROFILE_BANNERS } from '../data/catecData';
 import { StorageService } from '../services/storage';
 import { useTheme } from '../theme/themeContext';
@@ -31,6 +29,7 @@ import { GlassCard } from '../components/GlassCard';
 import { GlassHeader } from '../components/GlassHeader';
 import { GlassModal } from '../components/GlassModal';
 import { GlassButton } from '../components/GlassButton';
+import { pickPhoto } from '../services/photos';
 
 interface ProfileScreenProps {
   profile: UserProfile;
@@ -46,10 +45,31 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   onOpenNotifications,
 }) => {
   const { colors } = useTheme();
+  const [profileTab, setProfileTab] = useState<'profile' | 'posts'>('profile');
+  const [posts, setPosts] = useState<NewsItem[]>([]);
+  useEffect(() => {
+    let active = true;
+    void StorageService.getAllNewsAndPosts().then(items => { if (active) setPosts(items.filter(item => item.isUserCreated && item.author.startsWith(profile.fullName))); });
+    return () => { active = false; };
+  }, [profile.fullName, profileTab]);
 
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [showBannerModal, setShowBannerModal] = useState(false);
   const [showCodeModal, setShowCodeModal] = useState(false);
+  const [pickingPhoto, setPickingPhoto] = useState(false);
+
+  const changePhoto = async (kind: 'avatar' | 'cover') => {
+    if (pickingPhoto) return;
+    setPickingPhoto(true);
+    try {
+      const uri = await pickPhoto(kind);
+      if (!uri) return;
+      const updated = { ...profile, ...(kind === 'avatar' ? { avatarUrl: uri } : { coverUrl: uri }) };
+      await StorageService.saveUserProfile(updated);
+      onUpdateProfile(updated);
+    } catch { Alert.alert('Не удалось добавить фото', 'Попробуйте выбрать изображение ещё раз.'); }
+    finally { setPickingPhoto(false); }
+  };
 
   // Active banner colors
   const activeBanner = PROFILE_BANNERS.find((b) => b.id === profile.bannerId) || PROFILE_BANNERS[0];
@@ -78,6 +98,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     const updated: UserProfile = {
       ...profile,
       bannerId,
+      coverUrl: undefined,
     };
     await StorageService.saveUserProfile(updated);
     onUpdateProfile(updated);
@@ -87,101 +108,36 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   return (
     <View style={[styles.container, { backgroundColor: colors.canvas }]}>
       <GlassHeader
-        title="Кабинет"
-        subtitle="ЦАТЭК • Личный профиль"
-        rightBadge={`ID: ${profile.studentId}`}
+        title="Профиль"
         onNotificationPress={onOpenNotifications}
       />
 
       <ScrollView
+        contentInsetAdjustmentBehavior="never"
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Custom Banner Header */}
-        <View style={styles.bannerWrapper}>
-          <LinearGradient
-            colors={activeBanner.colors as [string, string, ...string[]]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.bannerHeader}
-          >
-            <TouchableOpacity
-              activeOpacity={0.8}
-              onPress={() => setShowBannerModal(true)}
-              style={styles.changeBannerPill}
-            >
-              <ImageIcon size={12} color="#ffffff" />
-              <Text style={styles.changeBannerText}>Сменить баннер</Text>
-            </TouchableOpacity>
+        <View style={styles.socialCover}>
+          <LinearGradient colors={activeBanner.colors as [string, string, ...string[]]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.socialCoverGradient}>
+            {profile.coverUrl && <Image source={{ uri: profile.coverUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />}
+            <TouchableOpacity accessibilityLabel="Выбрать фото обложки" disabled={pickingPhoto} onPress={() => void changePhoto('cover')} style={styles.changeBannerPill}><ImageIcon size={16} color="#fff" /><Text style={styles.changeBannerText}>Своё фото</Text></TouchableOpacity>
           </LinearGradient>
-
-          {/* Student Pass Holographic Card Floating over Banner */}
-          <View style={styles.passCardOverlap}>
-            <GlassCard elevated style={styles.passCardBody} glowColor="cyan">
-              <View style={styles.passCardTop}>
-                <View style={styles.passCrestRow}>
-                  <View style={[styles.crestCircle, { backgroundColor: colors.accentLight }]}>
-                    <Shield size={16} color={colors.accent} />
-                  </View>
-                  <View>
-                    <Text style={[styles.crestTitle, { color: colors.textPrimary }]}>
-                      ЦАТЭК АЛМАТЫ
-                    </Text>
-                    <Text style={[styles.crestSub, { color: colors.accent }]}>
-                      СТУДЕНЧЕСКИЙ БИЛЕТ
-                    </Text>
-                  </View>
-                </View>
-                <Wifi size={18} color={colors.textSecondary} style={{ transform: [{ rotate: '90deg' }] }} />
-              </View>
-
-              <View style={styles.passMainRow}>
-                <View style={[styles.avatarBox, { backgroundColor: colors.accentLight, borderColor: colors.accent }]}>
-                  <Text style={[styles.avatarText, { color: colors.accent }]}>
-                    {profile.fullName.split(' ').map((n) => n[0]).join('').slice(0, 2)}
-                  </Text>
-                </View>
-
-                <View style={styles.passDetailsCol}>
-                  <Text style={[styles.passName, { color: colors.textPrimary }]} numberOfLines={1}>
-                    {profile.fullName}
-                  </Text>
-                  <Text style={[styles.passFaculty, { color: colors.textSecondary }]}>
-                    {profile.faculty}
-                  </Text>
-
-                  <View style={styles.passTagsRow}>
-                    <View style={[styles.groupTag, { backgroundColor: colors.tagBg, borderColor: colors.cardBorderHighlight }]}>
-                      <Text style={[styles.groupTagText, { color: colors.accent }]}>
-                        Группа: {profile.group}
-                      </Text>
-                    </View>
-                    <View style={[styles.courseTag, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]}>
-                      <Text style={[styles.courseTagText, { color: colors.textSecondary }]}>
-                        {profile.course} КУРС
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-              </View>
-
-              {/* Card Footer: 4-Digit Student ID & Status */}
-              <View style={[styles.passCardFooter, { borderTopColor: colors.divider }]}>
-                <View>
-                  <Text style={[styles.idLabel, { color: colors.textMuted }]}>ID СТУДЕНТА (4 ЦИФРЫ)</Text>
-                  <Text style={[styles.idValue, { color: colors.textPrimary }]}>№ {profile.studentId}</Text>
-                </View>
-
-                <View style={[styles.validPill, { backgroundColor: 'rgba(5, 150, 105, 0.15)', borderColor: colors.success }]}>
-                  <View style={[styles.validDot, { backgroundColor: colors.success }]} />
-                  <Text style={[styles.validText, { color: colors.success }]}>АКТИВЕН 2026/2027</Text>
-                </View>
-
-                <QrCode size={26} color={colors.textPrimary} />
-              </View>
-            </GlassCard>
-          </View>
+          <LinearGradient colors={['rgba(255,255,255,0)', '#ffffff']} style={styles.coverFade} pointerEvents="none" />
         </View>
+        <View style={styles.socialIdentity}>
+          <TouchableOpacity accessibilityLabel="Выбрать фото профиля" disabled={pickingPhoto} onPress={() => void changePhoto('avatar')} style={[styles.socialAvatar, { backgroundColor: colors.accentLight }]}>{profile.avatarUrl ? <Image source={{ uri: profile.avatarUrl }} style={{ width: '100%', height: '100%', borderRadius: 23 }} /> : <Text style={[styles.socialInitials, { color: colors.accent }]}>{profile.fullName.split(' ').map(n => n[0]).join('').slice(0, 2)}</Text>}<View style={[styles.avatarEdit, { backgroundColor: colors.accent }]}><ImageIcon size={12} color="#fff" /></View></TouchableOpacity>
+          <Text style={[styles.socialName, { color: colors.textPrimary }]}>{profile.fullName}</Text>
+          <Text style={[styles.socialHandle, { color: colors.textMuted }]}>Студент ЦАТЭК · № {profile.studentId}</Text>
+          <View style={styles.socialTags}><Text style={[styles.socialGroup, { color: colors.accent, backgroundColor: colors.accentLight }]}>{profile.group}</Text><Text style={{ color: colors.textSecondary, fontSize: 13 }}>{profile.course} курс</Text></View>
+          <Text style={[styles.socialBio, { color: colors.textSecondary }]}>{profile.faculty}</Text>
+        </View>
+        <View style={[styles.profileTabs, { borderBottomColor: colors.divider }]}>
+          {(['profile', 'posts'] as const).map(item => <TouchableOpacity key={item} onPress={() => setProfileTab(item)} style={[styles.profileTab, { borderBottomColor: profileTab === item ? colors.accent : 'transparent' }]}><Text style={{ fontSize: 14, fontWeight: '700', color: profileTab === item ? colors.accent : colors.textMuted }}>{item === 'profile' ? 'О студенте' : 'Публикации'}</Text></TouchableOpacity>)}
+        </View>
+        {profileTab === 'posts' && <View style={styles.profilePosts}>
+          {posts.length ? posts.map(post => <View key={post.id} style={[styles.profilePost, { borderBottomColor: colors.divider }]}><Text style={{ color: colors.textPrimary, fontSize: 14, fontWeight: '700' }}>{profile.fullName}</Text><Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 4 }}>{post.date}</Text><Text style={{ color: colors.textPrimary, fontSize: 15, lineHeight: 22, marginTop: 10 }}>{post.content}</Text>{post.imageUri && <Image source={{ uri: post.imageUri }} resizeMode="cover" style={{ width: '100%', aspectRatio: 4 / 3, borderRadius: 16, marginTop: 12 }} />}</View>) : <Text style={{ color: colors.textMuted, textAlign: 'center', paddingVertical: 28 }}>Ваши публикации появятся здесь.</Text>}
+        </View>}
+        {profileTab === 'profile' && <>
 
         {/* Academic Stats */}
         <View style={styles.statsRow}>
@@ -209,6 +165,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         </View>
 
         {/* Settings & Appearance */}
+        <TouchableOpacity onPress={() => setShowBannerModal(true)} style={{ paddingHorizontal: 22, paddingBottom: 20 }}><Text style={{ color: colors.accent, fontSize: 14 }}>Выбрать готовую обложку</Text></TouchableOpacity>
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.accent }]}>
             ВНЕШНИЙ ВИД И НАСТРОЙКИ
@@ -305,6 +262,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             }}
           />
         </View>
+        </>}
       </ScrollView>
 
       {/* Code Reminder Modal */}
@@ -408,11 +366,27 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 };
 
 const styles = StyleSheet.create({
+  avatarEdit: { position: 'absolute', right: -3, bottom: -3, width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: '#fff', alignItems: 'center', justifyContent: 'center' },
+  socialCover: { height: 190, position: 'relative' },
+  socialCoverGradient: { flex: 1, alignItems: 'flex-end', padding: 18 },
+  coverFade: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 100 },
+  socialIdentity: { paddingHorizontal: 22, marginTop: -48 },
+  socialAvatar: { width: 82, height: 82, borderRadius: 27, borderWidth: 4, borderColor: '#fff', alignItems: 'center', justifyContent: 'center' },
+  socialInitials: { fontSize: 27, fontWeight: '700' },
+  socialName: { fontSize: 25, fontWeight: '700', letterSpacing: -0.6, marginTop: 12 },
+  socialHandle: { fontSize: 13, marginTop: 4 },
+  socialTags: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 16 },
+  socialGroup: { fontSize: 12, fontWeight: '700', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+  socialBio: { fontSize: 14, lineHeight: 21, marginTop: 12 },
+  profileTabs: { flexDirection: 'row', marginHorizontal: 20, marginTop: 22, marginBottom: 20, borderBottomWidth: StyleSheet.hairlineWidth },
+  profileTab: { flex: 1, alignItems: 'center', paddingVertical: 14, borderBottomWidth: 2 },
+  profilePosts: { paddingHorizontal: 22 },
+  profilePost: { paddingBottom: 20, marginBottom: 20, borderBottomWidth: StyleSheet.hairlineWidth },
   container: {
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 110,
+    paddingBottom: 28,
   },
   bannerWrapper: {
     marginBottom: 16,
@@ -465,12 +439,12 @@ const styles = StyleSheet.create({
   },
   crestTitle: {
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '700',
     letterSpacing: 0.8,
   },
   crestSub: {
     fontSize: 9,
-    fontWeight: '800',
+    fontWeight: '700',
     letterSpacing: 0.5,
   },
   passMainRow: {
@@ -489,14 +463,14 @@ const styles = StyleSheet.create({
   },
   avatarText: {
     fontSize: 19,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   passDetailsCol: {
     flex: 1,
   },
   passName: {
     fontSize: 17,
-    fontWeight: '800',
+    fontWeight: '700',
     marginBottom: 2,
   },
   passFaculty: {
@@ -536,13 +510,12 @@ const styles = StyleSheet.create({
   },
   idLabel: {
     fontSize: 8,
-    fontWeight: '800',
+    fontWeight: '700',
     letterSpacing: 0.4,
   },
   idValue: {
     fontSize: 13,
-    fontWeight: '800',
-    fontFamily: 'Courier',
+    fontWeight: '700',
   },
   validPill: {
     flexDirection: 'row',
@@ -560,7 +533,7 @@ const styles = StyleSheet.create({
   },
   validText: {
     fontSize: 9,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   statsRow: {
     flexDirection: 'row',
@@ -575,7 +548,7 @@ const styles = StyleSheet.create({
   },
   statValue: {
     fontSize: 18,
-    fontWeight: '800',
+    fontWeight: '700',
     marginTop: 4,
   },
   statLabel: {
@@ -589,7 +562,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '700',
     letterSpacing: 0.8,
     marginBottom: 8,
   },
@@ -638,7 +611,7 @@ const styles = StyleSheet.create({
   },
   modalTitleText: {
     fontSize: 20,
-    fontWeight: '800',
+    fontWeight: '700',
     marginBottom: 6,
     textAlign: 'center',
   },
@@ -656,7 +629,7 @@ const styles = StyleSheet.create({
   },
   codeDisplayText: {
     fontSize: 34,
-    fontWeight: '800',
+    fontWeight: '700',
     letterSpacing: 6,
   },
   modalBody: {
@@ -677,7 +650,7 @@ const styles = StyleSheet.create({
   },
   groupModalName: {
     fontSize: 15,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   groupModalSub: {
     fontSize: 10,
@@ -698,6 +671,6 @@ const styles = StyleSheet.create({
   bannerItemText: {
     color: '#ffffff',
     fontSize: 14,
-    fontWeight: '800',
+    fontWeight: '700',
   },
 });

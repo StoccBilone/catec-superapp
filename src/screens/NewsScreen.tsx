@@ -7,6 +7,8 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Image,
+  Alert,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import {
@@ -20,10 +22,14 @@ import {
   Paperclip,
   PenLine,
   Share2,
+  X,
 } from 'lucide-react-native';
 import { NewsItem, UserProfile } from '../types';
 import { StorageService } from '../services/storage';
 import { useTheme } from '../theme/themeContext';
+import { StudentPass } from '../components/StudentPass';
+import { ScreenSafeArea as SafeAreaView } from '../components/ScreenSafeArea';
+import { pickPhoto } from '../services/photos';
 
 interface NewsScreenProps {
   profile: UserProfile;
@@ -47,6 +53,17 @@ export const NewsScreen: React.FC<NewsScreenProps> = ({ profile, onOpenNotificat
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [attachment, setAttachment] = useState<'photo' | 'file' | null>(null);
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [pickingPhoto, setPickingPhoto] = useState(false);
+  const attachPhoto = async () => {
+    if (pickingPhoto) return;
+    setPickingPhoto(true);
+    try {
+      const uri = await pickPhoto('post');
+      if (uri) { setPhotoUri(uri); setAttachment('photo'); }
+    } catch { Alert.alert('Не удалось добавить фото', 'Попробуйте выбрать изображение ещё раз.'); }
+    finally { setPickingPhoto(false); }
+  };
 
   useEffect(() => {
     void StorageService.getAllNewsAndPosts().then(setNews);
@@ -76,12 +93,15 @@ export const NewsScreen: React.FC<NewsScreenProps> = ({ profile, onOpenNotificat
       likes: 0,
       commentsCount: 0,
       isUserCreated: true,
+      avatarUrl: profile.avatarUrl,
+      imageUri: photoUri || undefined,
     };
     const updated = await StorageService.createPost(post);
     setNews(updated);
     setTitle('');
     setBody('');
     setAttachment(null);
+    setPhotoUri(null);
     setComposerVisible(false);
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
   };
@@ -96,7 +116,7 @@ export const NewsScreen: React.FC<NewsScreenProps> = ({ profile, onOpenNotificat
         <View style={styles.header}>
           <View>
             <Text style={[styles.brand, { color: colors.textPrimary }]}>ЦАТЭК</Text>
-            <Text style={[styles.headerCaption, { color: colors.textSecondary }]}>Новости колледжа</Text>
+            <Text style={[styles.headerCaption, { color: colors.textSecondary }]}>Мой колледж</Text>
           </View>
           <View style={styles.headerActions}>
             <TouchableOpacity onPress={onOpenNotifications} accessibilityLabel="Уведомления" style={[styles.headerButton, { borderColor: colors.cardBorder, backgroundColor: colors.cardBg }]}>
@@ -109,9 +129,10 @@ export const NewsScreen: React.FC<NewsScreenProps> = ({ profile, onOpenNotificat
           </View>
         </View>
 
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+        <ScrollView contentInsetAdjustmentBehavior="never" showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+          <StudentPass profile={profile} />
           <TouchableOpacity onPress={openComposer} activeOpacity={0.86} style={[styles.startPost, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}>
-            <View style={[styles.avatar, { backgroundColor: colors.accentLight }]}><Text style={[styles.avatarText, { color: colors.accent }]}>{initials(profile.fullName)}</Text></View>
+            <View style={[styles.avatar, { backgroundColor: colors.accentLight }]}>{profile.avatarUrl ? <Image source={{ uri: profile.avatarUrl }} style={styles.avatarPhoto} /> : <Text style={[styles.avatarText, { color: colors.accent }]}>{initials(profile.fullName)}</Text>}</View>
             <Text style={[styles.startPostText, { color: colors.textMuted }]}>Поделитесь новостью с колледжем</Text>
             <PenLine color={colors.accent} size={19} />
           </TouchableOpacity>
@@ -135,8 +156,8 @@ export const NewsScreen: React.FC<NewsScreenProps> = ({ profile, onOpenNotificat
             return (
               <TouchableOpacity key={item.id} activeOpacity={0.92} onPress={() => setArticle(item)} style={[styles.post, { borderBottomColor: colors.divider }]}>
                 <View style={styles.threadRail}>
-                  <View style={[styles.authorAvatar, { backgroundColor: item.isUserCreated ? colors.accent : '#e7eee8' }]}>
-                    <Text style={[styles.authorAvatarText, { color: item.isUserCreated ? '#fff' : colors.accent }]}>{initials(item.author)}</Text>
+                  <View style={[styles.authorAvatar, { backgroundColor: item.isUserCreated ? colors.accent : colors.accentLight }]}>
+                    {item.avatarUrl ? <Image source={{ uri: item.avatarUrl }} style={styles.avatarPhoto} /> : <Text style={[styles.authorAvatarText, { color: item.isUserCreated ? '#fff' : colors.accent }]}>{initials(item.author)}</Text>}
                   </View>
                   <View style={[styles.threadLine, { backgroundColor: colors.divider }]} />
                 </View>
@@ -150,6 +171,7 @@ export const NewsScreen: React.FC<NewsScreenProps> = ({ profile, onOpenNotificat
                   </View>
                   <Text style={[styles.postTitle, { color: colors.textPrimary }]}>{item.title}</Text>
                   <Text numberOfLines={4} style={[styles.postBody, { color: colors.textSecondary }]}>{item.content}</Text>
+                  {item.imageUri && <Image source={{ uri: item.imageUri }} style={styles.postImage} resizeMode="cover" />}
                   <View style={styles.postFooter}>
                     <TouchableOpacity onPress={(event) => { event.stopPropagation(); toggleLike(item.id); }} style={styles.footerAction}>
                       <Heart size={19} color={liked ? '#d84d4d' : colors.textSecondary} fill={liked ? '#d84d4d' : 'none'} />
@@ -167,6 +189,7 @@ export const NewsScreen: React.FC<NewsScreenProps> = ({ profile, onOpenNotificat
 
       <ArticleModal article={article} colors={colors} onClose={() => setArticle(null)} />
       <ComposerModal visible={composerVisible} profile={profile} colors={colors} topic={topic} title={title} body={body} attachment={attachment}
+        photoUri={photoUri} pickingPhoto={pickingPhoto} onPhoto={() => void attachPhoto()} onRemovePhoto={() => { setPhotoUri(null); setAttachment(null); }}
         onClose={() => setComposerVisible(false)} onTopic={setTopic} onTitle={setTitle} onBody={setBody} onAttachment={setAttachment} onPublish={publish} />
     </View>
   );
@@ -174,7 +197,7 @@ export const NewsScreen: React.FC<NewsScreenProps> = ({ profile, onOpenNotificat
 
 function ArticleModal({ article, colors, onClose }: { article: NewsItem | null; colors: ReturnType<typeof useTheme>['colors']; onClose: () => void }) {
   return <Modal visible={!!article} animationType="slide" onRequestClose={onClose}>
-    <View style={[styles.modalPage, { backgroundColor: colors.canvasElevated }]}>
+    <SafeAreaView style={[styles.modalPage, { backgroundColor: colors.canvasElevated }]}>
       <View style={[styles.modalHeader, { borderBottomColor: colors.divider }]}>
         <TouchableOpacity onPress={onClose} style={styles.modalIcon}><ChevronLeft color={colors.textPrimary} size={28} /></TouchableOpacity>
         <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Публикация</Text>
@@ -184,9 +207,10 @@ function ArticleModal({ article, colors, onClose }: { article: NewsItem | null; 
         <Text style={[styles.articleTopic, { color: colors.accent }]}>{article.category}</Text>
         <Text style={[styles.articleHeading, { color: colors.textPrimary }]}>{article.title}</Text>
         <Text style={[styles.articleByline, { color: colors.textMuted }]}>{article.author} · {article.date}</Text>
+        {article.imageUri && <Image source={{ uri: article.imageUri }} style={styles.postImage} resizeMode="cover" />}
         <Text style={[styles.articleText, { color: colors.textSecondary }]}>{article.content}</Text>
       </ScrollView>}
-    </View>
+    </SafeAreaView>
   </Modal>;
 }
 
@@ -204,20 +228,24 @@ interface ComposerProps {
   onBody: (body: string) => void;
   onAttachment: (attachment: 'photo' | 'file') => void;
   onPublish: () => void;
+  photoUri: string | null;
+  pickingPhoto: boolean;
+  onPhoto: () => void;
+  onRemovePhoto: () => void;
 }
 
 function ComposerModal(props: ComposerProps) {
   const canPublish = props.body.trim().length > 0;
   return <Modal visible={props.visible} animationType="slide" onRequestClose={props.onClose}>
-    <View style={[styles.modalPage, { backgroundColor: props.colors.canvasElevated }]}>
+    <SafeAreaView style={[styles.modalPage, { backgroundColor: props.colors.canvasElevated }]}>
       <View style={[styles.modalHeader, { borderBottomColor: props.colors.divider }]}>
         <TouchableOpacity onPress={props.onClose} style={styles.cancelButton}><Text style={[styles.cancelText, { color: props.colors.textSecondary }]}>Отмена</Text></TouchableOpacity>
         <Text style={[styles.modalTitle, { color: props.colors.textPrimary }]}>Новая ветка</Text>
         <TouchableOpacity disabled={!canPublish} onPress={props.onPublish} style={[styles.publishButton, { backgroundColor: canPublish ? props.colors.accent : '#d9dfda' }]}><Text style={styles.publishText}>Опубликовать</Text></TouchableOpacity>
       </View>
-      <ScrollView contentContainerStyle={styles.composerContent} keyboardShouldPersistTaps="handled">
+      <ScrollView automaticallyAdjustKeyboardInsets contentInsetAdjustmentBehavior="never" contentContainerStyle={styles.composerContent} keyboardShouldPersistTaps="handled">
         <View style={styles.composerAuthor}>
-          <View style={[styles.avatar, { backgroundColor: props.colors.accentLight }]}><Text style={[styles.avatarText, { color: props.colors.accent }]}>{initials(props.profile.fullName)}</Text></View>
+          <View style={[styles.avatar, { backgroundColor: props.colors.accentLight }]}>{props.profile.avatarUrl ? <Image source={{ uri: props.profile.avatarUrl }} style={styles.avatarPhoto} /> : <Text style={[styles.avatarText, { color: props.colors.accent }]}>{initials(props.profile.fullName)}</Text>}</View>
           <View><Text style={[styles.authorName, { color: props.colors.textPrimary }]}>{props.profile.fullName}</Text><Text style={[styles.authorRole, { color: props.colors.textMuted }]}>{props.profile.group} · Студент ЦАТЭК</Text></View>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.composerTopics}>
@@ -225,30 +253,34 @@ function ComposerModal(props: ComposerProps) {
         </ScrollView>
         <TextInput value={props.title} onChangeText={props.onTitle} placeholder="Заголовок (необязательно)" placeholderTextColor={props.colors.textMuted} style={[styles.composerTitleInput, { color: props.colors.textPrimary, borderBottomColor: props.colors.divider }]} />
         <TextInput value={props.body} onChangeText={props.onBody} multiline autoFocus placeholder="Что нового?" placeholderTextColor={props.colors.textMuted} textAlignVertical="top" style={[styles.composerBodyInput, { color: props.colors.textPrimary }]} />
+        {props.photoUri && <View style={{ position: 'relative' }}><Image source={{ uri: props.photoUri }} style={styles.postImage} resizeMode="cover" /><TouchableOpacity accessibilityLabel="Удалить фото из черновика" onPress={props.onRemovePhoto} style={styles.removePhoto}><X color="#fff" size={18} /></TouchableOpacity></View>}
         <View style={[styles.attachmentPanel, { borderTopColor: props.colors.divider }]}>
-          <TouchableOpacity onPress={() => props.onAttachment('photo')} style={styles.attachmentButton}><ImageIcon color={props.colors.accent} size={21} /><Text style={[styles.attachmentText, { color: props.colors.textSecondary }]}>{props.attachment === 'photo' ? 'Фото выбрано' : 'Фото'}</Text></TouchableOpacity>
+          <TouchableOpacity disabled={props.pickingPhoto} onPress={props.onPhoto} style={styles.attachmentButton}><ImageIcon color={props.colors.accent} size={21} /><Text style={[styles.attachmentText, { color: props.colors.textSecondary }]}>{props.pickingPhoto ? 'Загрузка...' : props.photoUri ? 'Сменить фото' : 'Фото'}</Text></TouchableOpacity>
           <TouchableOpacity onPress={() => props.onAttachment('file')} style={styles.attachmentButton}><FileText color={props.colors.accent} size={21} /><Text style={[styles.attachmentText, { color: props.colors.textSecondary }]}>{props.attachment === 'file' ? 'Файл выбран' : 'Файл'}</Text></TouchableOpacity>
           <View style={styles.attachmentButton}><Paperclip color={props.colors.textMuted} size={21} /><Text style={[styles.attachmentText, { color: props.colors.textSecondary }]}>Вложение</Text></View>
         </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   </Modal>;
 }
 
 const styles = StyleSheet.create({
+  avatarPhoto: { width: 38, height: 38, borderRadius: 19 },
+  postImage: { width: '100%', aspectRatio: 4 / 3, borderRadius: 16, marginTop: 12, marginBottom: 12, backgroundColor: '#f1f5f9' },
+  removePhoto: { position: 'absolute', top: 20, right: 8, width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
   page: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 13, paddingBottom: 12 },
-  brand: { fontSize: 28, fontWeight: '800', letterSpacing: -0.7 }, headerCaption: { fontSize: 13, marginTop: 2 },
+  header: { flexShrink: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 13, paddingBottom: 12 },
+  brand: { fontSize: 28, fontWeight: '700', letterSpacing: -0.7 }, headerCaption: { fontSize: 13, marginTop: 2 },
   headerActions: { flexDirection: 'row', gap: 9 }, headerButton: { width: 43, height: 43, borderRadius: 15, borderWidth: 1, alignItems: 'center', justifyContent: 'center' }, composeButton: { width: 43, height: 43, borderRadius: 15, alignItems: 'center', justifyContent: 'center' }, notificationDot: { position: 'absolute', width: 7, height: 7, borderRadius: 4, right: 10, top: 10, borderWidth: 1.5, borderColor: '#fff' },
-  content: { paddingHorizontal: 16, paddingBottom: 108 },
+  content: { paddingHorizontal: 20, paddingBottom: 24 },
   startPost: { minHeight: 64, borderRadius: 19, borderWidth: 1, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 11, marginBottom: 12 },
-  avatar: { width: 39, height: 39, borderRadius: 14, alignItems: 'center', justifyContent: 'center' }, avatarText: { fontWeight: '800', fontSize: 13 }, startPostText: { flex: 1, fontSize: 14 },
+  avatar: { width: 39, height: 39, borderRadius: 14, alignItems: 'center', justifyContent: 'center' }, avatarText: { fontWeight: '700', fontSize: 13 }, startPostText: { flex: 1, fontSize: 14 },
   categories: { paddingTop: 13, paddingBottom: 5, gap: 8 }, category: { borderRadius: 12, borderWidth: 1, paddingHorizontal: 13, paddingVertical: 9 }, categoryText: { fontSize: 13, fontWeight: '700' },
-  feedTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 16, marginBottom: 0, paddingBottom: 11, borderBottomWidth: StyleSheet.hairlineWidth }, feedTitle: { fontSize: 18, fontWeight: '800', letterSpacing: -0.25 }, feedCount: { fontSize: 12 },
-  post: { flexDirection: 'row', paddingTop: 14, paddingBottom: 15, borderBottomWidth: StyleSheet.hairlineWidth }, threadRail: { width: 48, alignItems: 'center' }, threadLine: { flex: 1, width: 1, marginTop: 7 }, postContent: { flex: 1, minWidth: 0, paddingRight: 2 }, postTop: { flexDirection: 'row', alignItems: 'flex-start' }, authorAvatar: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' }, authorAvatarText: { fontWeight: '800', fontSize: 12 }, authorMeta: { flex: 1, minWidth: 0 }, authorName: { fontSize: 14, fontWeight: '800' }, authorRole: { fontSize: 11, marginTop: 2 }, topicText: { fontSize: 11, fontWeight: '700', marginLeft: 8, paddingTop: 1 },
-  postTitle: { fontSize: 16, lineHeight: 21, fontWeight: '800', letterSpacing: -0.12, marginTop: 11 }, postBody: { fontSize: 14, lineHeight: 20, marginTop: 5 },
+  feedTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 16, marginBottom: 0, paddingBottom: 11, borderBottomWidth: StyleSheet.hairlineWidth }, feedTitle: { fontSize: 18, fontWeight: '700', letterSpacing: -0.25 }, feedCount: { fontSize: 12 },
+  post: { flexDirection: 'row', paddingTop: 14, paddingBottom: 15, borderBottomWidth: StyleSheet.hairlineWidth }, threadRail: { width: 48, alignItems: 'center' }, threadLine: { flex: 1, width: 1, marginTop: 7 }, postContent: { flex: 1, minWidth: 0, paddingRight: 2 }, postTop: { flexDirection: 'row', alignItems: 'flex-start' }, authorAvatar: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' }, authorAvatarText: { fontWeight: '700', fontSize: 12 }, authorMeta: { flex: 1, minWidth: 0 }, authorName: { fontSize: 14, fontWeight: '700' }, authorRole: { fontSize: 11, marginTop: 2 }, topicText: { fontSize: 11, fontWeight: '700', marginLeft: 8, paddingTop: 1 },
+  postTitle: { fontSize: 16, lineHeight: 21, fontWeight: '700', letterSpacing: -0.12, marginTop: 11 }, postBody: { fontSize: 14, lineHeight: 20, marginTop: 5 },
   postFooter: { marginTop: 12, flexDirection: 'row', gap: 22 }, footerAction: { flexDirection: 'row', alignItems: 'center', gap: 6 }, footerText: { fontSize: 12, fontWeight: '600' },
-  modalPage: { flex: 1 }, modalHeader: { height: 64, paddingHorizontal: 16, borderBottomWidth: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, modalTitle: { fontSize: 17, fontWeight: '800' }, modalIcon: { width: 40, alignItems: 'center' }, cancelButton: { width: 74 }, cancelText: { fontSize: 15, fontWeight: '600' }, publishButton: { minWidth: 108, borderRadius: 13, paddingHorizontal: 10, paddingVertical: 10, alignItems: 'center' }, publishText: { color: '#fff', fontWeight: '800', fontSize: 12 },
-  articleContent: { padding: 22, paddingBottom: 50 }, articleTopic: { fontSize: 13, fontWeight: '800', marginBottom: 10 }, articleHeading: { fontSize: 28, lineHeight: 34, fontWeight: '800', letterSpacing: -0.6 }, articleByline: { fontSize: 13, lineHeight: 18, marginTop: 14, marginBottom: 25 }, articleText: { fontSize: 17, lineHeight: 27 },
-  composerContent: { padding: 20, paddingBottom: 42 }, composerAuthor: { flexDirection: 'row', alignItems: 'center', gap: 10 }, composerTopics: { gap: 8, paddingVertical: 18 }, composerTopic: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }, composerTitleInput: { fontSize: 19, fontWeight: '800', paddingVertical: 12, borderBottomWidth: 1 }, composerBodyInput: { fontSize: 17, lineHeight: 25, minHeight: 210, paddingTop: 17 }, attachmentPanel: { borderTopWidth: 1, flexDirection: 'row', paddingTop: 15, gap: 28 }, attachmentButton: { alignItems: 'center', gap: 6 }, attachmentText: { fontSize: 11, fontWeight: '600' },
+  modalPage: { flex: 1 }, modalHeader: { minHeight: 64, flexShrink: 0, gap: 8, paddingHorizontal: 16, borderBottomWidth: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, modalTitle: { fontSize: 16, fontWeight: '700', flexShrink: 1 }, modalIcon: { width: 40, alignItems: 'center' }, cancelButton: { width: 64 }, cancelText: { fontSize: 15, fontWeight: '600' }, publishButton: { minWidth: 100, borderRadius: 13, paddingHorizontal: 10, paddingVertical: 10, alignItems: 'center' }, publishText: { color: '#fff', fontWeight: '700', fontSize: 12 },
+  articleContent: { padding: 22, paddingBottom: 50 }, articleTopic: { fontSize: 13, fontWeight: '700', marginBottom: 10 }, articleHeading: { fontSize: 28, lineHeight: 34, fontWeight: '700', letterSpacing: -0.6 }, articleByline: { fontSize: 13, lineHeight: 18, marginTop: 14, marginBottom: 25 }, articleText: { fontSize: 17, lineHeight: 27 },
+  composerContent: { padding: 20, paddingBottom: 42 }, composerAuthor: { flexDirection: 'row', alignItems: 'center', gap: 10 }, composerTopics: { gap: 8, paddingVertical: 18 }, composerTopic: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }, composerTitleInput: { fontSize: 19, fontWeight: '700', paddingVertical: 12, borderBottomWidth: 1 }, composerBodyInput: { fontSize: 17, lineHeight: 25, minHeight: 210, paddingTop: 17 }, attachmentPanel: { borderTopWidth: 1, flexDirection: 'row', paddingTop: 15, gap: 28 }, attachmentButton: { alignItems: 'center', gap: 6 }, attachmentText: { fontSize: 11, fontWeight: '600' },
 });

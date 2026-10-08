@@ -89,6 +89,7 @@ export const StorageService = {
       }
     } catch (e) {}
     // Default initial mock message for the group
+    if (groupId.startsWith('room:')) return [];
     return [
       {
         id: `init-${groupId}-1`,

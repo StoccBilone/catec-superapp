@@ -7,7 +7,9 @@ import {
   TouchableWithoutFeedback,
   ScrollView,
   Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { X } from 'lucide-react-native';
 import { useTheme } from '../theme/themeContext';
@@ -27,6 +29,7 @@ export const GlassModal: React.FC<GlassModalProps> = ({
 }) => {
   const { colors, mode } = useTheme();
   const isDark = mode === 'dark';
+  const insets = useSafeAreaInsets();
 
   return (
     <Modal
@@ -36,7 +39,7 @@ export const GlassModal: React.FC<GlassModalProps> = ({
       onRequestClose={onClose}
     >
       <TouchableWithoutFeedback onPress={onClose}>
-        <View style={styles.backdrop}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.backdrop, { paddingTop: Math.max(insets.top, Platform.OS === 'web' ? 54 : 0) + 12 }]}>
           {Platform.OS === 'ios' ? (
             <BlurView
               intensity={isDark ? 28 : 20}
@@ -54,6 +57,7 @@ export const GlassModal: React.FC<GlassModalProps> = ({
                 {
                   backgroundColor: colors.canvasElevated,
                   borderColor: colors.cardBorderHighlight,
+                  paddingBottom: Math.max(insets.bottom, 12),
                 },
               ]}
             >
@@ -77,6 +81,7 @@ export const GlassModal: React.FC<GlassModalProps> = ({
               </TouchableOpacity>
 
               <ScrollView
+                keyboardShouldPersistTaps="handled"
                 style={styles.scrollArea}
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
@@ -85,7 +90,7 @@ export const GlassModal: React.FC<GlassModalProps> = ({
               </ScrollView>
             </View>
           </TouchableWithoutFeedback>
-        </View>
+        </KeyboardAvoidingView>
       </TouchableWithoutFeedback>
     </Modal>
   );

@@ -31,6 +31,7 @@ function Navigation() {
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.canvas } }}>
         <Stack.Protected guard={authenticated}>
           <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="conversation" />
         </Stack.Protected>
         <Stack.Protected guard={!authenticated}>
           <Stack.Screen name="auth" />

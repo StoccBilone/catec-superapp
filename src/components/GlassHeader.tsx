@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Bell, Shield } from 'lucide-react-native';
+import { Bell } from 'lucide-react-native';
 import { useTheme } from '../theme/themeContext';
 
 interface GlassHeaderProps {
@@ -18,14 +18,14 @@ export const GlassHeader: React.FC<GlassHeaderProps> = ({
   onNotificationPress,
   showNotificationBell = true,
 }) => {
-  const { colors, mode } = useTheme();
+  const { colors } = useTheme();
 
   return (
     <View style={styles.container}>
       <View style={styles.titleSection}>
         {subtitle && (
           <Text style={[styles.subtitle, { color: colors.accent }]}>
-            {subtitle.toUpperCase()}
+            {subtitle}
           </Text>
         )}
         <View style={styles.titleRow}>
@@ -68,11 +68,12 @@ export const GlassHeader: React.FC<GlassHeaderProps> = ({
 
 const styles = StyleSheet.create({
   container: {
+    flexShrink: 0,
     paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: 14,
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     justifyContent: 'space-between',
   },
   titleSection: {
@@ -80,7 +81,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '700',
     letterSpacing: 1.1,
     marginBottom: 4,
   },
@@ -92,7 +93,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 27,
-    fontWeight: '800',
+    fontWeight: '700',
     letterSpacing: -0.4,
   },
   badge: {

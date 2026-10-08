@@ -85,7 +85,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 20,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   list: {
     gap: 10,
