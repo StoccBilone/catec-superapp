@@ -84,7 +84,15 @@ export const ChatRecorder = forwardRef<RecorderHandle, { onSend: (item: Material
     const subscription = AppState.addEventListener('change', state => { if (state !== 'active') void stop(true); });
     return () => { clearInterval(timer); subscription.remove(); };
   });
-  useEffect(() => { alive.current = true; return () => { alive.current = false; held.current = false; canceled.current = true; if (audio.isRecording) void audio.stop().catch(() => {}).finally(() => setAudioModeAsync({ allowsRecording: false }).catch(() => {})); }; }, [audio]);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false; held.current = false; canceled.current = true;
+      // useAudioRecorder owns native cleanup and stops recording on release.
+      // Its cleanup runs first: accessing audio here would use a released object.
+      void setAudioModeAsync({ allowsRecording: false }).catch(() => {});
+    };
+  }, [audio]);
   useImperativeHandle(ref, () => ({
     start: async requested => {
       if (busy.current || draft) return;
@@ -98,9 +106,12 @@ export const ChatRecorder = forwardRef<RecorderHandle, { onSend: (item: Material
           setKind(requested);
         } else {
           const permission = await AudioModule.requestRecordingPermissionsAsync();
+          if (!alive.current || !held.current) { busy.current = false; return; }
           if (!permission.granted) throw new Error('Разрешите доступ к микрофону в настройках.');
           await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+          if (!alive.current || !held.current) { await setAudioModeAsync({ allowsRecording: false }); busy.current = false; return; }
           await audio.prepareToRecordAsync();
+          if (!alive.current) { await setAudioModeAsync({ allowsRecording: false }); busy.current = false; return; }
           if (!held.current || !alive.current || AppState.currentState !== 'active') { await audio.stop(); await setAudioModeAsync({ allowsRecording: false }); busy.current = false; return; }
           started.current = Date.now(); audio.record(); setKind(requested); setRecording(true);
         }
