@@ -136,6 +136,16 @@ export const strings: Record<string, [string, string]> = {
   'До конца пары': ['Until class ends', 'Сабақтың аяқталуына дейін'], 'До следующей пары': ['Until next class', 'Келесі сабаққа дейін'],
   'Расписание звонков': ['Bell schedule', 'Қоңырау кестесі'], 'Занятий нет': ['No classes', 'Сабақ жоқ'], 'Время не указано': ['Time not specified', 'Уақыт көрсетілмеген'],
   'Личная заметка': ['Personal note', 'Жеке жазба'], 'Задание или заметка...': ['Assignment or note...', 'Тапсырма немесе жазба...'],
+  'Уровень': ['Level', 'Деңгей'], 'Время': ['Time', 'Уақыт'],
+  'Лабиринт пройден': ['Maze complete', 'Лабиринт аяқталды'],
+  'Доведите шарик до лунки': ['Guide the marble to the hole', 'Шарды шұңқырға жеткізіңіз'],
+  'Наклон': ['Tilt', 'Еңкейту'], 'Касание': ['Touch', 'Түрту'],
+  'Наклоняйте телефон': ['Tilt your phone', 'Телефонды еңкейтіңіз'],
+  'Ведите пальцем по полю': ['Drag your finger on the board', 'Саусағыңызды алаңда жылжытыңыз'],
+  'Калибровка': ['Calibrate', 'Калибрлеу'], 'Следующий уровень': ['Next level', 'Келесі деңгей'],
+  'Подготовка...': ['Preparing...', 'Дайындалуда...'],
+  'Датчик недоступен. Управляйте касанием.': ['Sensor unavailable. Use touch controls.', 'Датчик қолжетімсіз. Түрту арқылы басқарыңыз.'],
+  'Не удалось открыть 3D-сцену': ['Could not open the 3D scene', '3D көріністі ашу мүмкін болмады'],
 };
 let activeLocale: Locale = 'ru';
 export const setActiveLocale = (locale: Locale) => { activeLocale = locale; };

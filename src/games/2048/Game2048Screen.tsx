@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Easing, PanResponder, ScrollView, StyleSheet, Text as BoardNumber, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Animated, Easing, PanResponder, Platform, ScrollView, StyleSheet, Text as BoardNumber, View, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ChevronLeft, Pause, RotateCcw } from 'lucide-react-native';
+import { ChevronLeft, Pause, RotateCcw } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ScreenSafeArea } from '../../components/ScreenSafeArea';
 import { GlassTool } from '../../components/GlassTool';
@@ -68,7 +68,11 @@ function Board({ tiles, size, onMove, blocked }: { tiles: Tile[]; size: number; 
   const gap = size < 280 ? 7 : 10;
   const cell = (size - gap * 5) / 4;
   const rows = Array.from({ length: 4 }, (_, row) => Array.from({ length: 4 }, (_, column) => tiles.find(tile => tile.row === row && tile.column === column)?.value || 0).join(', ')).join('; ');
-  return <View {...responder.panHandlers} accessible accessibilityLabel={`${translate('Игровое поле', language)}. ${rows}`} style={[styles.board, { width: size, height: size, backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}>
+  const directions: Direction[] = ['left', 'up', 'down', 'right'];
+  return <View {...responder.panHandlers} accessible accessibilityLabel={`${translate('Игровое поле', language)}. ${rows}`}
+    accessibilityActions={directions.map((name, index) => ({ name, label: translate(['Сдвинуть влево', 'Сдвинуть вверх', 'Сдвинуть вниз', 'Сдвинуть вправо'][index], language) }))}
+    onAccessibilityAction={event => { const direction = event.nativeEvent.actionName as Direction; if (!blocked && directions.includes(direction)) onMove(direction); }}
+    style={[styles.board, { width: size, height: size, backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}>
     {Array.from({ length: 16 }, (_, index) => <View key={index} style={{ position: 'absolute', width: cell, height: cell, borderRadius: Math.min(17, cell * 0.2), backgroundColor: colors.canvas, left: gap + (index % 4) * (cell + gap), top: gap + Math.floor(index / 4) * (cell + gap) }} />)}
     {tiles.map(tile => <NumberTile key={tile.id} tile={tile} size={cell} gap={gap} />)}
   </View>;
@@ -127,13 +131,9 @@ export function Game2048Screen({ profileId }: { profileId: string }) {
     setSheet(null);
   };
   const leave = () => { if (router.canGoBack()) router.back(); else router.replace('/games'); };
-  const boardSize = Math.floor(Math.min(width - 40, 430, Math.max(210, height - insets.top - insets.bottom - 340 * interfaceScale)));
-  const arrows = [
-    { direction: 'left' as const, Icon: ArrowLeft, label: 'Сдвинуть влево' },
-    { direction: 'up' as const, Icon: ArrowUp, label: 'Сдвинуть вверх' },
-    { direction: 'down' as const, Icon: ArrowDown, label: 'Сдвинуть вниз' },
-    { direction: 'right' as const, Icon: ArrowRight, label: 'Сдвинуть вправо' },
-  ];
+  const topSpace = Platform.OS === 'web' ? 54 : insets.top;
+  const centerOffset = Math.max(0, 72 + topSpace - insets.bottom + 34 * interfaceScale);
+  const boardSize = Math.floor(Math.min(width - 40, 430, Math.max(160, height - topSpace - insets.bottom - 72 - 48 - centerOffset - 170 * interfaceScale)));
 
   return <ScreenSafeArea edges={['top', 'left', 'right', 'bottom']} style={{ flex: 1, backgroundColor: colors.canvas }}>
     <View style={styles.header}>
@@ -144,7 +144,7 @@ export function Game2048Screen({ profileId }: { profileId: string }) {
     {!saved ? <View style={styles.loading}>{loadError ? <>
       <Text style={{ color: colors.textSecondary }}>Не удалось открыть игру</Text>
       <Pressable onPress={() => { setLoadError(false); setRetry(value => value + 1); }} style={[styles.action, { backgroundColor: colors.accent }]}><Text style={{ color: colors.onAccent }}>Повторить</Text></Pressable>
-    </> : <ActivityIndicator color={colors.textPrimary} />}</View> : <ScrollView bounces={false} showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+    </> : <ActivityIndicator color={colors.textPrimary} />}</View> : <ScrollView bounces={false} showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, { paddingBottom: 24 + centerOffset }]}>
       <View style={[styles.scores, { width: boardSize }]}>
         {[{ label: 'Счёт', value: saved.game.score }, { label: 'Рекорд', value: saved.best }].map(item => <View key={item.label} style={[styles.score, { backgroundColor: colors.cardBg }]}>
           <Text style={{ fontSize: 12, color: colors.textSecondary }}>{item.label}</Text>
@@ -152,8 +152,6 @@ export function Game2048Screen({ profileId }: { profileId: string }) {
         </View>)}
       </View>
       <Board tiles={saved.game.tiles} size={boardSize} onMove={move} blocked={won || lost || !!sheet} />
-      <Text style={[styles.hint, { color: colors.textSecondary }]}>Смахивайте, чтобы объединять числа.</Text>
-      <View style={styles.arrows}>{arrows.map(({ direction, Icon, label }) => <GlassTool key={direction} label={label} onPress={() => move(direction)} disabled={won || lost || !!sheet}><Icon size={20} color={colors.textPrimary} /></GlassTool>)}</View>
       <View style={[styles.bottom, { width: boardSize }]}>
         <Text style={{ color: colors.textMuted, fontSize: 13 }}>{'Ходы'}: <Text translate={false}>{saved.game.moves}</Text></Text>
         <Pressable accessibilityRole="button" onPress={() => setSheet('restart')} style={styles.restart}><RotateCcw size={15} color={colors.textSecondary} /><Text style={{ color: colors.textSecondary, fontSize: 13 }}>Новая игра</Text></Pressable>
@@ -180,14 +178,12 @@ const styles = StyleSheet.create({
   header: { height: 72, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   heading: { fontSize: 27, fontWeight: '700', letterSpacing: -0.8 },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  content: { alignItems: 'center', paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24 },
+  content: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 24 },
   scores: { flexDirection: 'row', gap: 12, marginBottom: 18 },
   score: { flex: 1, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 12 },
   number: { fontSize: 25, fontWeight: '600', fontVariant: ['tabular-nums'], marginTop: 4 },
   board: { borderRadius: 25, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
   tile: { position: 'absolute', left: 0, top: 0, alignItems: 'center', justifyContent: 'center' },
-  hint: { fontSize: 13, textAlign: 'center', marginTop: 20, marginBottom: 16 },
-  arrows: { flexDirection: 'row', gap: 12 },
   bottom: { marginTop: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   restart: { minHeight: 44, flexDirection: 'row', gap: 6, alignItems: 'center' },
   action: { minHeight: 50, padding: 14, borderRadius: 18, alignItems: 'center', justifyContent: 'center', marginTop: 24 },

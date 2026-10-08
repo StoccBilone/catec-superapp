@@ -168,3 +168,55 @@ async function checkIslandStorage() {
   assert.equal(await storage.loadIslandBest('two'), 0, 'island records are private to each profile');
 }
 Promise.all([checkStorage(), checkIslandStorage()]).then(() => console.log('Games OK: 2048 rules and saves; Island model selection, curved collisions, score, paddle angles, walls, loss, long rally and records.')).catch(error => { console.error(error); process.exitCode = 1; });
+const mazeEngine = load('src/games/maze/engine.ts');
+const { makeMaze, newMarble, stepMarble, MARBLE_RADIUS } = mazeEngine;
+for (const seed of [112, 208, 304, 416, 512]) {
+  const maze = makeMaze(seed);
+  assert.deepEqual(maze, makeMaze(seed), 'stages are deterministic');
+  for (let n = 0; n < maze.size; n++) assert.ok(maze.cells[0][n] && maze.cells[8][n] && maze.cells[n][0] && maze.cells[n][8], 'outer walls stay closed');
+  const visited = new Set(['1,1']), queue = [[1, 1]];
+  for (let i = 0; i < queue.length; i++) {
+    const [x, z] = queue[i];
+    for (const [dx, dz] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+      const nx=x+dx, nz=z+dz, key=`${nx},${nz}`;
+      if (maze.cells[nz]?.[nx] === 0 && !visited.has(key)) { visited.add(key); queue.push([nx,nz]); }
+    }
+  }
+  assert.ok(visited.has('7,7'), 'every stage has a route to the goal');
+  assert.equal(visited.size, maze.cells.flat().filter(n => n === 0).length, 'all corridors are connected');
+  let ball = newMarble(maze);
+  for (let i=0;i<5000;i++) {
+    ball = stepMarble(ball, maze, {x:Math.sin(i/93),z:Math.cos(i/67)},1/60).marble;
+    assert.ok(Number.isFinite(ball.x) && Number.isFinite(ball.z));
+    assert.equal(maze.cells[Math.floor(ball.z)][Math.floor(ball.x)], 0, 'marble never tunnels into a wall');
+    for (let z=0;z<maze.size;z++) for(let x=0;x<maze.size;x++) if(maze.cells[z][x]) {
+      const dx=ball.x-Math.max(x,Math.min(x+1,ball.x)), dz=ball.z-Math.max(z,Math.min(z+1,ball.z));
+      assert.ok(Math.hypot(dx,dz)>=MARBLE_RADIUS-1e-8, 'marble cannot overlap walls');
+    }
+  }
+  const start=newMarble(maze), collision=stepMarble({...start,vx:-3},{...maze},{x:-1,z:0},0.05);
+  assert.deepEqual(start,newMarble(maze), 'physics leaves previous frame intact');
+  assert.ok(collision.marble.x>=1+MARBLE_RADIUS);
+  const finish=stepMarble({...start,...maze.goal},maze,{x:0,z:0},1/60).marble;
+  assert.equal(finish.won,true); assert.equal(finish.vx,0); assert.equal(finish.vz,0);
+  assert.equal(stepMarble(finish,maze,{x:1,z:1},1).marble,finish,'a completed game freezes');
+  assert.equal(stepMarble(start,maze,{x:1,z:0},NaN).marble,start);
+  assert.ok(stepMarble(start,maze,{x:1,z:0},10).marble.elapsed<=0.051,'background time is clamped');
+}
+const { multiply } = load('src/games/maze/renderer.ts', { './engine': mazeEngine });
+const identity=[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
+const transform=[2,0,0,0,0,3,0,0,0,0,4,0,5,6,7,1];
+assert.deepEqual(multiply(identity,transform),transform);
+assert.deepEqual(multiply(transform,identity),transform);
+async function checkMazeStorage() {
+  const values=new Map();
+  const fake={getItem:async key=>values.get(key)||null,setItem:async(key,value)=>{await new Promise(resolve=>setTimeout(resolve,JSON.parse(value).level===1?15:1));values.set(key,value);}};
+  const storage=load('src/games/maze/storage.ts',{'@react-native-async-storage/async-storage':{__esModule:true,default:fake}});
+  const first={level:1,best:[1234,null,null,null,null]}, last={...first,level:2};
+  const a=storage.saveMazeProgress('one',first), b=storage.saveMazeProgress('one',last);
+  assert.deepEqual(await storage.loadMazeProgress('one'),last); await Promise.all([a,b]);
+  assert.deepEqual(await storage.loadMazeProgress('two'),storage.emptyProgress());
+  values.set('@catec_maze_v1:one',JSON.stringify({...last,best:[-1]}));
+  assert.deepEqual(await storage.loadMazeProgress('one'),storage.emptyProgress(),'malformed progress recovers');
+}
+checkMazeStorage().then(()=>console.log('Maze OK: five solvable stages, wall collisions, goal, timing, matrices and isolated ordered saves.')).catch(error=>{console.error(error);process.exitCode=1;});

@@ -1,8 +1,8 @@
 export interface Target { x: number; y: number; width: number; height: number; kind: 'island' | 'notch' | 'capsule'; }
 export interface Arena { width: number; height: number; paddleY: number; paddleWidth: number; target: Target; }
 export interface IslandGame { x: number; y: number; vx: number; vy: number; paddleX: number; score: number; ended: boolean; }
-export const BALL_RADIUS = 7;
-export const PADDLE_HEIGHT = 10;
+export const BALL_RADIUS = 10;
+export const PADDLE_HEIGHT = 14;
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
 // Native iOS exposes the model and safe area, not the physical cutout rectangle.
@@ -21,7 +21,7 @@ export function targetForDevice(width: number, topInset: number, modelId: string
 }
 
 export function createArena(width: number, height: number, bottomInset: number, target: Target): Arena {
-  return { width, height, target, paddleWidth: Math.min(96, width * 0.25), paddleY: height - Math.max(bottomInset, 16) - 85 };
+  return { width, height, target, paddleWidth: Math.min(124, width * 0.32), paddleY: height - Math.max(bottomInset, 16) - 96 };
 }
 
 export function createIslandGame(arena: Arena): IslandGame {
