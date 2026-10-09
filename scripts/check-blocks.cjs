@@ -7,6 +7,20 @@ const filename=path.resolve('src/games/blocks/engine.ts');
 const source=ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText;
 const mod=new Module(filename);mod._compile(source,filename);
 const {SHAPES,newBlocks,fits,place,canPlay,decodeBlocks}=mod.exports;
+const interactionFilename=path.resolve('src/games/blocks/interaction.ts');
+const interactionModule=new Module(interactionFilename);
+interactionModule.require=name=>name==='./engine'?mod.exports:require(name);
+interactionModule._compile(ts.transpileModule(fs.readFileSync(interactionFilename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,interactionFilename);
+const {pieceSize,pieceLift,dropTarget}=interactionModule.exports;
+for(let shape=0;shape<SHAPES.length;shape++){
+  for(const cell of [28,45,52.5]){
+    const {rows,columns}=pieceSize(shape),origin={x:16,y:210};
+    const lift=pieceLift(shape,cell);
+    assert.ok(lift-rows*cell/2>=26,'held piece must remain above the finger');
+    assert.deepEqual(dropTarget(shape,cell,origin,{x:origin.x+(2+columns/2)*cell,y:origin.y+(3+rows/2)*cell+lift}),{row:3,col:2},'preview and full-size ghost must share one anchor');
+    assert.ok(dropTarget(shape,cell,origin,{x:-1000,y:-1000}).row<0);
+  }
+}
 const rng=()=>0;
 const initial=newBlocks(90,rng);
 assert.equal(initial.board.length,64);
