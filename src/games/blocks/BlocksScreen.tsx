@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Easing, PanResponder, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -10,7 +10,7 @@ import { Pressable, Text } from '../../components/Typography';
 import { useTheme } from '../../theme/themeContext';
 import { usePreferences } from '../../context/PreferencesContext';
 import { translate } from '../../i18n/strings';
-import { BlocksGame, SHAPES, canPlay, fits, legalPlaces, newBlocks, place, previewPlacement } from './engine';
+import { BlocksGame, SHAPES, fits, legalPlaces, newBlocks, place, previewPlacement } from './engine';
 import { loadBlocks, saveBlocks } from './storage';
 import { followOffset, magneticTarget, pieceLift, snappedPointer } from './interaction';
 
@@ -19,7 +19,7 @@ function Piece({shape, slot, selected, cell, lift, blocked, unavailable, onSelec
   const {colors}=useTheme(); const {motionReduced,language}=usePreferences();
   const cells=SHAPES[shape], rows=Math.max(...cells.map(p=>p[0]))+1, cols=Math.max(...cells.map(p=>p[1]))+1;
   const unit=Math.min(25,cell*.58);
-  const source=useRef<View>(null), center=useRef({x:0,y:0}), held=useRef(false), alive=useRef(true), measured=useRef(false), pointer=useRef({x:0,y:0});
+  const source=useRef<View>(null), center=useRef({x:0,y:0}), held=useRef(false), alive=useRef(true), measured=useRef(false), ready=useRef(false), fullSize=useRef(false), pointer=useRef({x:0,y:0});
   const [offset]=useState(()=>new Animated.ValueXY()), [scale]=useState(()=>new Animated.Value(motionReduced?1:.78));
   const [dragging,setDragging]=useState(false);
   const callbacks=useRef({blocked,onSelect,onDrag,onDrop,motionReduced,lift,ratio:cell/unit});
@@ -28,7 +28,7 @@ function Piece({shape, slot, selected, cell, lift, blocked, unavailable, onSelec
   useEffect(()=>{const animation=Animated.timing(scale,{toValue:1,duration:110,easing:Easing.out(Easing.cubic),useNativeDriver:true});if(motionReduced)scale.setValue(1);else animation.start();return()=>animation.stop();},[scale,motionReduced]);
   const returnHome=()=>{
     held.current=false;
-    const options={useNativeDriver:true,duration:115,easing:Easing.out(Easing.cubic)};
+    const options={useNativeDriver:true,duration:90,easing:Easing.out(Easing.cubic)};
     if(callbacks.current.motionReduced){offset.setValue({x:0,y:0});scale.setValue(1);setDragging(false);return;}
     Animated.parallel([Animated.timing(offset,{...options,toValue:{x:0,y:0}}),Animated.timing(scale,{...options,toValue:1})]).start(({finished})=>{if(finished&&alive.current&&!held.current)setDragging(false);});
   };
@@ -38,34 +38,35 @@ function Piece({shape, slot, selected, cell, lift, blocked, unavailable, onSelec
     onMoveShouldSetPanResponder:()=>!callbacks.current.blocked,
     onPanResponderTerminationRequest:()=>false,
     onPanResponderGrant:(event)=>{
-      held.current=true;measured.current=false;setDragging(true);callbacks.current.onSelect();
-      pointer.current={x:event.nativeEvent.pageX,y:event.nativeEvent.pageY};offset.stopAnimation();scale.stopAnimation();
-      if(!callbacks.current.motionReduced)void Haptics.selectionAsync().catch(()=>{});
-      source.current?.measureInWindow((x,y,w,h)=>{
-        if(!held.current)return;center.current={x:x+w/2,y:y+h/2};measured.current=true;
-        const destination=followOffset(pointer.current,center.current,callbacks.current.lift);
-        if(callbacks.current.motionReduced){offset.setValue(destination);scale.setValue(callbacks.current.ratio);}
-        else Animated.parallel([
-          Animated.timing(offset,{toValue:destination,duration:60,easing:Easing.out(Easing.cubic),useNativeDriver:true}),
-          Animated.timing(scale,{toValue:callbacks.current.ratio,duration:60,easing:Easing.out(Easing.cubic),useNativeDriver:true}),
-        ]).start();
+      held.current=true;measured.current=ready.current;fullSize.current=false;setDragging(true);callbacks.current.onSelect();
+      pointer.current={x:event.nativeEvent.pageX,y:event.nativeEvent.pageY};scale.stopAnimation();
+      const pickup=()=>{
+        if(!held.current)return;
+        offset.setValue(followOffset(pointer.current,center.current,callbacks.current.lift));
+        if(callbacks.current.motionReduced){scale.setValue(callbacks.current.ratio);fullSize.current=true;}
+        else Animated.timing(scale,{toValue:callbacks.current.ratio,duration:35,easing:Easing.out(Easing.cubic),useNativeDriver:true}).start();
+      };
+      if(measured.current)pickup();
+      else source.current?.measureInWindow((x,y,w,h)=>{
+        if(!alive.current)return;center.current={x:x+w/2,y:y+h/2};ready.current=true;measured.current=true;pickup();
       });
+      if(!callbacks.current.motionReduced)void Haptics.selectionAsync().catch(()=>{});
     },
     onPanResponderMove:(_e,g)=>{
       pointer.current={x:g.moveX,y:g.moveY};if(!measured.current)return;
-      offset.stopAnimation();scale.stopAnimation();scale.setValue(callbacks.current.ratio);
+      if(!fullSize.current){scale.setValue(callbacks.current.ratio);fullSize.current=true;}
       offset.setValue(followOffset(pointer.current,center.current,callbacks.current.lift));
       callbacks.current.onDrag(g.moveX,g.moveY);
     },
     onPanResponderRelease:(_e,g)=>{
-      const moved=Math.abs(g.dx)+Math.abs(g.dy)>8;
+      const moved=Math.abs(g.dx)+Math.abs(g.dy)>4;
       const accepted=moved&&!callbacks.current.blocked&&callbacks.current.onDrop(g.moveX,g.moveY);
       if(accepted){held.current=false;setDragging(false);offset.stopAnimation();scale.stopAnimation();}
       else returnHome();
     },
     onPanResponderTerminate:()=>{callbacks.current.onDrop(-1000,-1000);returnHome();},
   }));
-  return <View ref={source} {...responder.panHandlers} accessible accessibilityRole="button" accessibilityLabel={`${translate('Фигура',language)} ${slot+1}`} accessibilityState={{selected,disabled:blocked}} onAccessibilityTap={onSelect} style={[s.slot,{zIndex:dragging?10:1,opacity:blocked||unavailable&&!dragging?.35:1}]}>
+  return <View ref={source} collapsable={false} onLayout={()=>{ready.current=false;source.current?.measureInWindow((x,y,w,h)=>{if(alive.current){center.current={x:x+w/2,y:y+h/2};ready.current=true;}});}} {...responder.panHandlers} accessible accessibilityRole="button" accessibilityLabel={`${translate('Фигура',language)} ${slot+1}`} accessibilityState={{selected,disabled:blocked}} onAccessibilityTap={onSelect} style={[s.slot,{zIndex:dragging?10:1,opacity:blocked||unavailable&&!dragging?.35:1}]}>
     <Animated.View pointerEvents="none" style={{width:cols*unit,height:rows*unit,transform:[...offset.getTranslateTransform(),{scale}],shadowColor:'#000',shadowOpacity:dragging?.22:0,shadowRadius:12,shadowOffset:{width:0,height:8}}}>
       {cells.map(([r,c])=><View key={`${r}:${c}`} style={{position:'absolute',top:r*unit+2*unit/cell,left:c*unit+2*unit/cell,width:unit-4*unit/cell,height:unit-4*unit/cell,borderRadius:unit*.17,backgroundColor:colors.textPrimary,borderWidth:selected&&!dragging?1:0,borderColor:colors.textMuted}}/>)}
     </Animated.View>
@@ -93,8 +94,8 @@ export function BlocksScreen({profileId}:{profileId:string}) {
     const shape=previous.pieces[slot]!;
     current.current=result.game; setGame(result.game);setSelected(null);setTarget(null);persist(result.game);
     setPlaced(SHAPES[shape].map(([r,c])=>(row+r)*8+col+c).filter(i=>!result.cleared.includes(i)));
-    pop.stopAnimation();pop.setValue(motionReduced?1:.86);
-    if(!motionReduced)Animated.spring(pop,{toValue:1,damping:24,stiffness:520,mass:.45,useNativeDriver:true}).start();
+    pop.stopAnimation();pop.setValue(motionReduced?1:.94);
+    if(!motionReduced)Animated.spring(pop,{toValue:1,damping:26,stiffness:650,mass:.35,useNativeDriver:true}).start();
     if(result.cleared.length){
       setReward({points:result.gained,combo:result.game.combo});rewardProgress.stopAnimation();rewardProgress.setValue(0);
       Animated.timing(rewardProgress,{toValue:1,duration:850,easing:Easing.out(Easing.cubic),useNativeDriver:true}).start();
@@ -116,7 +117,8 @@ export function BlocksScreen({profileId}:{profileId:string}) {
     const next=magneticTarget(value.board,shape,cell,origin.current,snappedPointer(shape,cell,origin.current,{row,col}));
     if(next)commit(slot,next.row,next.col);
   };
-  const lost=!!game&&!canPlay(game);
+  const available=useMemo(()=>game?game.pieces.map(shape=>shape!==null&&legalPlaces(game.board,shape).length>0):[],[game]);
+  const lost=!!game&&!available.some(Boolean);
   useEffect(()=>{if(!lost)return;const timer=setTimeout(()=>setEndVisible(true),motionReduced?0:400);return()=>clearTimeout(timer);},[lost,motionReduced]);
   const previewShape=target&&game?.pieces[target.slot];
   const valid=!!target&&previewShape!=null&&!!game&&fits(game.board,previewShape,target.row,target.col);
@@ -141,7 +143,7 @@ export function BlocksScreen({profileId}:{profileId:string}) {
         <View style={{backgroundColor:colors.canvasElevated,paddingHorizontal:20,paddingVertical:10,borderRadius:20}}><Text translate={false} style={{color:colors.textPrimary,fontSize:30,fontWeight:'700',textAlign:'center'}}>+{reward.points}</Text>{reward.combo>1&&<View style={{flexDirection:'row',gap:5,justifyContent:'center'}}><Text style={{color:colors.textSecondary,fontSize:13}}>Комбо</Text><Text translate={false} style={{color:colors.textSecondary,fontSize:13}}>×{reward.combo}</Text></View>}</View>
       </Animated.View>
       </View>
-      <View style={[s.tray,{width:size}]}>{game.pieces.map((shape,slot)=>shape===null?<View key={`used:${slot}`} style={s.slot}/>:<Piece key={`${Math.floor(game.moves/3)}:${slot}`} shape={shape} slot={slot} selected={selected===slot} cell={cell} lift={pieceLift(shape,cell)} blocked={lost||sheet} unavailable={!legalPlaces(game.board,shape).length} onSelect={()=>{measure();snap.current=null;setTarget(null);setSelected(slot);}} onDrag={(x,y)=>{const next=locate(slot,x,y);snap.current=next;setTarget(previous=>previous?.row===next?.row&&previous?.col===next?.col&&previous?.slot===next?.slot?previous:next);}} onDrop={(x,y)=>{const t=locate(slot,x,y);const accepted=!!t&&commit(slot,t.row,t.col);snap.current=null;setTarget(null);return accepted;}}/>)}</View>
+      <View style={[s.tray,{width:size}]}>{game.pieces.map((shape,slot)=>shape===null?<View key={`used:${slot}`} style={s.slot}/>:<Piece key={`${Math.floor(game.moves/3)}:${slot}`} shape={shape} slot={slot} selected={selected===slot} cell={cell} lift={pieceLift(shape,cell)} blocked={lost||sheet} unavailable={!available[slot]} onSelect={()=>{measure();snap.current=null;setTarget(null);setSelected(slot);}} onDrag={(x,y)=>{const next=locate(slot,x,y);snap.current=next;setTarget(previous=>previous?.row===next?.row&&previous?.col===next?.col&&previous?.slot===next?.slot?previous:next);}} onDrop={(x,y)=>{const t=locate(slot,x,y);const accepted=!!t&&commit(slot,t.row,t.col);snap.current=null;setTarget(null);return accepted;}}/>)}</View>
       <View style={{height:72,alignItems:'center',justifyContent:'center'}}>{lost?<Pressable onPress={()=>setEndVisible(true)} style={[s.finish,{backgroundColor:colors.cardBg}]}><Text style={{color:colors.textPrimary,fontSize:18,fontWeight:'600'}}>Ходов больше нет</Text><Text style={{color:colors.textSecondary,marginTop:5}}>Ещё раз</Text></Pressable>:game.moves===0&&<Text style={{color:colors.textMuted,fontSize:12,textAlign:'center',maxWidth:size}}>Перетащите фигуру или выберите её и нажмите на клетку.</Text>}</View>
       {saveError&&<Pressable onPress={()=>{if(current.current)persist(current.current);}}><Text style={{color:colors.danger,fontSize:12,marginTop:8}}>Не удалось сохранить игру. Нажмите, чтобы повторить.</Text></Pressable>}
     </View>}
