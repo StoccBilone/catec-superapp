@@ -6,7 +6,7 @@ const path = require('node:path');
 const filename=path.resolve('src/games/blocks/engine.ts');
 const source=ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText;
 const mod=new Module(filename);mod._compile(source,filename);
-const {SHAPES,newBlocks,fits,place,canPlay,decodeBlocks}=mod.exports;
+const {SHAPES,newBlocks,fits,place,canPlay,decodeBlocks,dealPieces,previewPlacement}=mod.exports;
 const interactionFilename=path.resolve('src/games/blocks/interaction.ts');
 const interactionModule=new Module(interactionFilename);
 interactionModule.require=name=>name==='./engine'?mod.exports:require(name);
@@ -57,6 +57,37 @@ for(let i=1;i<8;i++){cross.board[i]=1;cross.board[i*8]=1;}
 const cleared=place(cross,0,0,0,rng);
 assert.equal(cleared.lines,2);assert.equal(cleared.cleared.length,15);
 assert.equal(cleared.game.board.filter(Boolean).length,0);assert.equal(cleared.game.score,31);
+const clearingRound=previous=>{
+  const g={...previous,board:Array(64).fill(0),pieces:[0,0,0]};
+  for(let i=1;i<8;i++)g.board[i]=1;
+  return place(g,0,0,0,rng);
+};
+const chain1=clearingRound(newBlocks(0,rng)),chain2=clearingRound(chain1.game);
+assert.equal(chain1.game.combo,1);assert.equal(chain2.game.combo,2);
+assert.ok(chain2.gained>chain1.gained,'consecutive clears should increase the bonus');
+let chain={...chain2.game,board:Array(64).fill(0),pieces:[0,0,0]};
+chain=place(chain,0,3,0,rng).game;chain=place(chain,1,3,1,rng).game;
+assert.equal(chain.combo,2,'two non-clearing moves keep the chain');
+chain=place(chain,2,3,2,rng).game;assert.equal(chain.combo,0,'third non-clearing move ends the chain');
+const legacy={...chain2.game};delete legacy.combo;delete legacy.comboMisses;delete legacy.totalLines;
+assert.equal(decodeBlocks(JSON.stringify(legacy)).score,legacy.score);assert.equal(decodeBlocks(JSON.stringify(legacy)).combo,0);
+assert.throws(()=>decodeBlocks(JSON.stringify({...chain2.game,comboMisses:3})));
+function traySolvable(board,pieces) {
+  if(!pieces.length)return true;
+  for(let slot=0;slot<pieces.length;slot++)for(let index=0;index<64;index++){
+    const result=previewPlacement(board,pieces[slot],Math.floor(index/8),index%8);
+    if(result&&traySolvable(result.board,pieces.filter((_p,i)=>i!==slot)))return true;
+  }
+  return false;
+}
+for(const density of [0,.3,.6,.8])for(let attempt=0;attempt<5;attempt++){
+  const board=Array.from({length:64},()=>Math.random()<density?1:0);
+  // Reachable boards never contain a completed row or column.
+  for(let r=0;r<8;r++)board[r*8+r]=0;
+  const before=JSON.stringify(board),pieces=dealPieces(board);
+  assert.equal(JSON.stringify(board),before);assert.equal(pieces.length,3);
+  assert.ok(traySolvable(board,pieces),'new tray must have a playable three-piece sequence');
+}
 let refill=newBlocks(0,rng);
 for(let i=0;i<3;i++)refill=place(refill,i,2,i,rng).game;
 assert.deepEqual(refill.pieces,[0,0,0]);assert.equal(refill.moves,3);
