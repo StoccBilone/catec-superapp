@@ -11,6 +11,21 @@ const KEYS = {
   SAVED_NOTES: '@catec_saved_notes_v2',
 };
 
+let profileVersion = 0;
+let pendingWrite: Promise<unknown> = Promise.resolve();
+function writeInOrder<T>(action: () => Promise<T>): Promise<T> {
+  const task = pendingWrite.catch(() => {}).then(action);
+  pendingWrite = task;
+  return task;
+}
+async function cacheChat(groupId: string, messages: ChatMessage[]) {
+  await writeInOrder(async () => {
+    const raw = await AsyncStorage.getItem(KEYS.CHAT_MESSAGES);
+    const map = raw ? JSON.parse(raw) : {};
+    map[groupId] = messages;
+    await AsyncStorage.setItem(KEYS.CHAT_MESSAGES, JSON.stringify(map));
+  });
+}
 export const StorageService = {
   // --- USER PROFILE ---
   async getUserProfile(): Promise<UserProfile | null> {
@@ -26,15 +41,19 @@ export const StorageService = {
   },
 
   async saveLocalProfile(profile: UserProfile): Promise<void> {
-    await AsyncStorage.setItem(KEYS.USER_PROFILE, JSON.stringify(profile));
+    profileVersion += 1;
+    await writeInOrder(() => AsyncStorage.setItem(KEYS.USER_PROFILE, JSON.stringify(profile)));
   },
 
   async saveUserProfile(profile: UserProfile): Promise<void> {
+    const version = ++profileVersion;
     try {
       const synced = await syncCloudProfile(profile);
-      Object.assign(profile, synced);
-      await AsyncStorage.setItem(KEYS.USER_PROFILE, JSON.stringify(synced));
-      await AsyncStorage.setItem(KEYS.IS_LOGGED_IN, 'true');
+      await writeInOrder(async () => {
+        if (version !== profileVersion) return;
+        Object.assign(profile, synced);
+        await AsyncStorage.setItem(KEYS.USER_PROFILE, JSON.stringify(synced));
+      });
     } catch (e) {
       console.warn('Error saving profile', e);
       throw e;
@@ -51,12 +70,11 @@ export const StorageService = {
   },
 
   async setLoggedIn(status: boolean): Promise<void> {
-    try {
-      await AsyncStorage.setItem(KEYS.IS_LOGGED_IN, status ? 'true' : 'false');
-    } catch {}
+    await AsyncStorage.setItem(KEYS.IS_LOGGED_IN, status ? 'true' : 'false');
   },
 
   async resetProfile(): Promise<void> {
+    profileVersion += 1;
     try {
       await AsyncStorage.removeItem(KEYS.USER_PROFILE);
       await AsyncStorage.removeItem(KEYS.IS_LOGGED_IN);
@@ -80,7 +98,8 @@ export const StorageService = {
   },
 
   async createPost(post: NewsItem): Promise<NewsItem[]> {
-    await publishCloudPost(post);
+    const published = await publishCloudPost(post);
+    await this.cachePost(published);
     return this.getAllNewsAndPosts();
   },
 
@@ -99,7 +118,18 @@ export const StorageService = {
 
   // --- CHAT MESSAGES ---
   async getChatMessages(groupId: string): Promise<ChatMessage[]> {
-    if (groupId.startsWith('cloud:')) return loadCloudMessages(groupId.slice(6));
+    if (groupId.startsWith('cloud:')) {
+      try {
+        const messages = await loadCloudMessages(groupId.slice(6));
+        await cacheChat(groupId, messages).catch(() => {});
+        return messages;
+      } catch (error) {
+        const raw = await AsyncStorage.getItem(KEYS.CHAT_MESSAGES);
+        const cached = raw ? JSON.parse(raw)[groupId] : undefined;
+        if (Array.isArray(cached)) return cached;
+        throw error;
+      }
+    }
     try {
       const allRaw = await AsyncStorage.getItem(KEYS.CHAT_MESSAGES);
       if (allRaw) {
@@ -111,18 +141,21 @@ export const StorageService = {
   },
 
   async addChatMessage(groupId: string, message: ChatMessage): Promise<ChatMessage[]> {
-    if (groupId.startsWith('cloud:')) return sendCloudMessage(groupId.slice(6), message);
-    try {
+    if (groupId.startsWith('cloud:')) {
+      const messages = await sendCloudMessage(groupId.slice(6), message);
+      // Delivery already succeeded; a failed cache write must not prompt a duplicate send.
+      await cacheChat(groupId, messages).catch(() => {});
+      return messages;
+    }
+    return writeInOrder(async () => {
       const allRaw = await AsyncStorage.getItem(KEYS.CHAT_MESSAGES);
       const chatsMap = allRaw ? JSON.parse(allRaw) : {};
-      const currentList: ChatMessage[] = chatsMap[groupId] || await this.getChatMessages(groupId);
+      const currentList: ChatMessage[] = chatsMap[groupId] || [];
       const updatedList = [...currentList, message];
       chatsMap[groupId] = updatedList;
       await AsyncStorage.setItem(KEYS.CHAT_MESSAGES, JSON.stringify(chatsMap));
       return updatedList;
-    } catch {
-      return [];
-    }
+    });
   },
 
   // --- LESSON USER NOTES ---
@@ -135,11 +168,11 @@ export const StorageService = {
   },
 
   async saveLessonNote(lessonId: string, note: string): Promise<void> {
-    try {
+    await writeInOrder(async () => {
       const existing = await this.getLessonNotes();
       existing[lessonId] = note;
       await AsyncStorage.setItem(KEYS.SAVED_NOTES, JSON.stringify(existing));
-    } catch (error) { throw error; }
+    });
   },
 
   // --- SUPABASE CONFIG ---

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, StyleSheet, ScrollView, Platform } from "react-native";
 import { Text, TextInput, TouchableOpacity, Alert } from "../components/Typography";
 import { LinearGradient } from 'expo-linear-gradient';
@@ -38,20 +38,25 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   const [generatedCode, setGeneratedCode] = useState<string | null>(null);
   const [registeredProfile, setRegisteredProfile] = useState<UserProfile | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const entering = useRef(false);
+  const alive = useRef(true);
+  const pinReset = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; if (pinReset.current) clearTimeout(pinReset.current); }; }, []);
   const login = async (profile: UserProfile, register = false) => {
-    if (submitting) return;
-    setSubmitting(true);
+    if (entering.current) return;
+    entering.current = true; setSubmitting(true);
     try { await (register ? onRegisterNew(profile) : onSuccessLogin(profile)); }
-    catch { setPinDigits(''); Alert.alert('Не удалось войти', 'Проверьте подключение к интернету и попробуйте ещё раз.'); }
-    finally { setSubmitting(false); }
+    catch { if (!alive.current) return; setPinDigits(''); Alert.alert('Не удалось войти', 'Проверьте подключение к интернету и попробуйте ещё раз.'); }
+    finally { entering.current = false; if (alive.current) setSubmitting(false); }
   };
 
   const handleKeyPress = (num: string) => {
     if (submitting || pinDigits.length >= 4) return;
     try {
-      Haptics.selectionAsync();
+      void Haptics.selectionAsync().catch(() => {});
     } catch {}
 
+    if (pinReset.current) clearTimeout(pinReset.current);
     const next = pinDigits + num;
     setPinDigits(next);
     setPinError(false);
@@ -60,15 +65,15 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
       // Validate
       if (existingProfile && next === existingProfile.passCode) {
         try {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
         } catch {}
         void login(existingProfile);
       } else {
         try {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
         } catch {}
         setPinError(true);
-        setTimeout(() => {
+        pinReset.current = setTimeout(() => {
           setPinDigits('');
           setPinError(false);
         }, 600);
@@ -79,8 +84,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   const handleDelete = () => {
     if (submitting || pinDigits.length === 0) return;
     try {
-      Haptics.selectionAsync();
+      void Haptics.selectionAsync().catch(() => {});
     } catch {}
+    if (pinReset.current) clearTimeout(pinReset.current);
     setPinDigits((prev) => prev.slice(0, -1));
     setPinError(false);
   };

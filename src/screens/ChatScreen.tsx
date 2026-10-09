@@ -78,7 +78,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
     let active = true;
     let loading = false;
     const load = async () => {
-      if (loading || (Platform.OS !== 'web' && AppState.currentState !== 'active')) return;
+      if (loading || sendingRef.current || (Platform.OS !== 'web' && AppState.currentState !== 'active')) return;
       loading = true;
       const version = messageVersion.current;
       try { const list = await StorageService.getChatMessages(profile.group); if (active && version === messageVersion.current) setMessages(list); }
@@ -196,6 +196,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
                         },
                       ],
                   isTeacher && !isOwn && !bareMedia && { borderLeftColor: colors.accent, borderLeftWidth: 3 },
+                  msg.attachments?.some(item => item.type === 'image' || item.type === 'video') && { width: '82%' },
                   bareMedia && { backgroundColor: 'transparent', borderWidth: 0, paddingHorizontal: 0, paddingVertical: 0 },
                 ]}
               >

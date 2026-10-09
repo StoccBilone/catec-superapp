@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { StorageService } from '../services/storage';
 import { UserProfile } from '../types';
 import { cloud } from '../services/cloud';
@@ -23,6 +23,7 @@ export function CampusProvider({ children }: { children: React.ReactNode }) {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [showNotifications, setShowNotifications] = useState(false);
+  const sessionVersion = useRef(0);
 
   useEffect(() => {
     let mounted = true;
@@ -31,13 +32,18 @@ export function CampusProvider({ children }: { children: React.ReactNode }) {
         const [stored, logged] = await Promise.all([
           StorageService.getUserProfile(), StorageService.isUserLoggedIn(),
         ]);
-        if (stored && logged) {
-          try { await StorageService.saveUserProfile(stored); }
-          catch { console.warn('Profile sync unavailable; using saved profile.'); }
-        }
         if (mounted) {
           setProfile(stored);
           setIsLoggedIn(logged && !!stored);
+          setIsLoading(false);
+        }
+        if (stored && logged) {
+          const version = sessionVersion.current;
+          const synced = { ...stored };
+          // Unlock the saved device immediately; a slow network must not block startup.
+          void StorageService.saveUserProfile(synced).then(() => {
+            if (mounted && version === sessionVersion.current) setProfile(synced);
+          }).catch(() => { console.warn('Profile sync unavailable; using saved profile.'); });
         }
       } catch (error) {
         console.warn('Init error', error);
@@ -50,6 +56,7 @@ export function CampusProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const authenticate = async (userProfile: UserProfile) => {
+    sessionVersion.current += 1;
     if (profile && profile.id !== userProfile.id) {
       const { error } = await cloud.auth.signOut({ scope: 'local' });
       if (error) throw error;
@@ -65,12 +72,14 @@ export function CampusProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = async () => {
+    sessionVersion.current += 1;
     await StorageService.setLoggedIn(false);
     setShowNotifications(false);
     setIsLoggedIn(false);
   };
 
   const updateGroup = async (group: string) => {
+    sessionVersion.current += 1;
     if (!profile) return;
     const updated = { ...profile, group };
     await StorageService.saveUserProfile(updated);
@@ -82,7 +91,7 @@ export function CampusProvider({ children }: { children: React.ReactNode }) {
       profile, isLoggedIn, isLoading, showNotifications,
       openNotifications: () => setShowNotifications(true),
       closeNotifications: () => setShowNotifications(false),
-      authenticate, logout, updateProfile: setProfile, updateGroup,
+      authenticate, logout, updateProfile: updated => { sessionVersion.current += 1; setProfile(updated); }, updateGroup,
     }}>
       {children}
     </CampusContext.Provider>

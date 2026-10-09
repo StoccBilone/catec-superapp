@@ -84,12 +84,12 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     void AsyncStorage.getItem(THEME_STORAGE_KEY).then(value => {
       if (value === 'light' || value === 'dark' || value === 'system') setPreference(value);
-    });
+    }).catch(() => {});
   }, []);
 
   const setTheme = (requestedMode: ThemePreference) => {
     setPreference(requestedMode);
-    void AsyncStorage.setItem(THEME_STORAGE_KEY, requestedMode);
+    void AsyncStorage.setItem(THEME_STORAGE_KEY, requestedMode).catch(() => {});
   };
 
   const toggleTheme = () => setTheme(mode === 'light' ? 'dark' : 'light');

@@ -1,6 +1,9 @@
 export type Locale = 'ru' | 'en' | 'kk';
 // UI copy only; student names, authored posts and curriculum data keep their original language.
 export const strings: Record<string, [string, string]> = {
+  'Не удалось выйти': ['Could not sign out', 'Шығу мүмкін болмады'],
+  'Не удалось поделиться': ['Could not share', 'Бөлісу мүмкін болмады'],
+  'Поделиться публикацией': ['Share post', 'Жарияланыммен бөлісу'],
   'Звуковая волна': ['Audio waveform', 'Дыбыс толқыны'],
   'Скорость воспроизведения': ['Playback speed', 'Ойнату жылдамдығы'],
   'Отправить запись': ['Send recording', 'Жазбаны жіберу'],

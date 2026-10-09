@@ -13,7 +13,7 @@ import { ScaleSlider } from './ScaleSlider';
 
 type Page = 'language' | 'theme' | 'size' | 'pin' | 'group' | 'about';
 const titles = { language: 'Язык', theme: 'Оформление', size: 'Размер текста', pin: 'Код входа', group: 'Учебная группа', about: 'О приложении' };
-export function SettingsModal({ visible, onClose, profile, onUpdate, onLogout }: { visible: boolean; onClose: () => void; profile: UserProfile; onUpdate: (profile: UserProfile) => Promise<void>; onLogout: () => void; onNotifications?: () => void }) {
+export function SettingsModal({ visible, onClose, profile, onUpdate, onLogout }: { visible: boolean; onClose: () => void; profile: UserProfile; onUpdate: (profile: UserProfile) => Promise<void>; onLogout: () => Promise<void>; onNotifications?: () => void }) {
   const { colors, preference, setTheme } = useTheme();
   const preferences = usePreferences();
   const [page, setPage] = useState<Page | null>(null);
@@ -28,7 +28,7 @@ export function SettingsModal({ visible, onClose, profile, onUpdate, onLogout }:
         {group('Интерфейс', <>{row('Оформление', { light: 'Светлое', dark: 'Тёмное', system: 'Системное' }[preference], 'theme')}{row('Размер текста', `${Math.round(preferences.interfaceScale * 100)}%`, 'size')}{row('Язык', { ru: 'Русский', en: 'English', kk: 'Қазақша' }[preferences.language], 'language')}<View style={[s.row, { borderBottomWidth: 0 }]}><Text style={[s.label, { color: colors.textPrimary }]}>Уменьшить анимации</Text><Switch value={preferences.reduceMotion} onValueChange={reduceMotion => preferences.update({ reduceMotion })} trackColor={{ true: colors.textSecondary }} /></View></>)}
         {group('Аккаунт', <>{row('Учебная группа', profile.group, 'group')}{row('Код входа', '••••', 'pin')}</>)}
         {group('Приложение', <>{row('Уведомления', 'В разработке')}{row('О приложении', '1.0.0', 'about')}</>)}
-        <Pressable style={[s.logout, { backgroundColor: colors.cardBg }]} onPress={() => Alert.alert('Выход из профиля', 'При следующем входе потребуется PIN-код.', [{ text: 'Отмена', style: 'cancel' }, { text: 'Выйти', style: 'destructive', onPress: () => { close(); onLogout(); } }])}><Text style={{ color: colors.danger, fontSize: 17 }}>Выйти из аккаунта</Text></Pressable>
+        <Pressable style={[s.logout, { backgroundColor: colors.cardBg }]} onPress={() => Alert.alert('Выход из профиля', 'При следующем входе потребуется PIN-код.', [{ text: 'Отмена', style: 'cancel' }, { text: 'Выйти', style: 'destructive', onPress: () => { void onLogout().then(close).catch(() => Alert.alert('Не удалось выйти', 'Попробуйте ещё раз.')); } }])}><Text style={{ color: colors.danger, fontSize: 17 }}>Выйти из аккаунта</Text></Pressable>
       </ScrollView>
       <GlassModal visible={!!page} onClose={() => setPage(null)}>
         <Text style={[s.title, { color: colors.textPrimary, marginBottom: 20 }]}>{page ? titles[page] : ''}</Text>

@@ -104,7 +104,7 @@ create policy "Read accessible materials" on storage.objects for select to authe
 
 -- Apply once to an existing CATEC SuperApp database.
 create or replace function public.create_group_conversation(label text, participants uuid[])
-returns uuid language plpgsql security definer set search_path = '' as $
+returns uuid language plpgsql security definer set search_path = '' as $$
 declare room uuid;
 begin
   if not exists(select 1 from public.profiles where id=auth.uid()) then raise exception 'Profile required'; end if;
@@ -115,7 +115,7 @@ begin
   insert into public.room_members(room_id,user_id) select room,target from unnest(participants) target on conflict do nothing;
   return room;
 end;
-$;
+$$;
 revoke all on function public.create_group_conversation(text,uuid[]) from public, anon;
 grant execute on function public.create_group_conversation(text,uuid[]) to authenticated;
 

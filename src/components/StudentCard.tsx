@@ -1,8 +1,8 @@
 import React from 'react';
-import { View, StyleSheet, Dimensions } from "react-native";
+import { View, StyleSheet } from "react-native";
 import { Text } from "./Typography";
 import { LinearGradient } from 'expo-linear-gradient';
-import { QrCode, Shield, Sparkles, Wifi } from 'lucide-react-native';
+import { QrCode, Shield, Wifi } from 'lucide-react-native';
 import { UserProfile } from '../types';
 import { LiquidTheme } from '../theme/liquidTheme';
 

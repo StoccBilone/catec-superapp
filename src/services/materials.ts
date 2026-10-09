@@ -10,7 +10,10 @@ const MAX_BYTES = 25 * 1024 * 1024;
 export async function persistMaterial(uri: string) {
   if (Platform.OS === 'web') {
     if (!uri.startsWith('blob:')) return uri;
-    const blob = await (await fetch(uri)).blob();
+    const response = await fetch(uri);
+    if (!response.ok) throw new Error('Не удалось открыть файл');
+    const blob = await response.blob();
+    if (blob.size > MAX_BYTES) throw new Error('Максимальный размер файла — 25 МБ.');
     return new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = reject; reader.readAsDataURL(blob); });
   }
   const original = new File(uri);

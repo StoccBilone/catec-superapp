@@ -19,7 +19,7 @@ export async function getChatRooms(profileId: string): Promise<ChatRoom[]> {
     if (error) throw error;
     const list: ChatRoom[] = (data || []).map(row => {
       const peer = row.room_members.find((member: { user_id: string }) => member.user_id !== id);
-      return { id: row.id, title: row.kind === 'chat' && peer ? peer.profiles.full_name : row.title, kind: row.kind, storageKey: `cloud:${row.id}`, collegeGroup: row.college_group || undefined };
+      return { id: row.id, title: row.kind === 'chat' && peer ? peer.profiles?.full_name || row.title : row.title, kind: row.kind, storageKey: `cloud:${row.id}`, collegeGroup: row.college_group || undefined };
     });
     const raw = await AsyncStorage.getItem(key(profileId));
     const legacy: ChatRoom[] = raw ? JSON.parse(raw) : [];

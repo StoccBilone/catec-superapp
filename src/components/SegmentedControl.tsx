@@ -21,8 +21,8 @@ export const SegmentedControl: React.FC<SegmentedControlProps> = ({
   const handleSelect = (index: number) => {
     if (index === selectedIndex) return;
     try {
-      Haptics.selectionAsync();
-    } catch (e) {}
+      void Haptics.selectionAsync().catch(() => {});
+    } catch {}
     onChange(index);
   };
 

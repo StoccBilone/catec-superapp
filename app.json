@@ -39,7 +39,8 @@
       ["expo-camera", { "cameraPermission": "Разрешите запись видеосообщений.", "microphonePermission": "Разрешите запись звука для видеосообщений.", "recordAudioAndroid": true }],
       ["expo-sensors", { "motionPermission": "Разрешите управление шариком наклоном телефона." }],
       "expo-video",
-      "expo-sharing"
+      "expo-sharing",
+      "expo-asset"
     ]
   }
 }
