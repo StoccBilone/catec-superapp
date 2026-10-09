@@ -28,7 +28,7 @@ function Piece({shape, slot, selected, cell, lift, blocked, onSelect, onDrag, on
   useEffect(()=>{const animation=Animated.spring(scale,{toValue:1,damping:20,stiffness:230,mass:.7,useNativeDriver:true});if(motionReduced)scale.setValue(1);else animation.start();return()=>animation.stop();},[scale,motionReduced]);
   const returnHome=()=>{
     held.current=false;
-    const options={useNativeDriver:true,damping:22,stiffness:260,mass:.7};
+    const options={useNativeDriver:true,damping:26,stiffness:420,mass:.5};
     if(callbacks.current.motionReduced){offset.setValue({x:0,y:0});scale.setValue(1);setDragging(false);return;}
     Animated.parallel([Animated.spring(offset,{...options,toValue:{x:0,y:0}}),Animated.spring(scale,{...options,toValue:1})]).start(({finished})=>{if(finished&&alive.current&&!held.current)setDragging(false);});
   };
@@ -46,15 +46,15 @@ function Piece({shape, slot, selected, cell, lift, blocked, onSelect, onDrag, on
         const destination={x:pointer.current.x-center.current.x,y:pointer.current.y-center.current.y-callbacks.current.lift};
         if(callbacks.current.motionReduced){offset.setValue(destination);scale.setValue(callbacks.current.ratio);}
         else Animated.parallel([
-          Animated.spring(offset,{toValue:destination,damping:24,stiffness:340,mass:.65,useNativeDriver:true}),
-          Animated.spring(scale,{toValue:callbacks.current.ratio,damping:23,stiffness:300,mass:.65,useNativeDriver:true}),
+          Animated.spring(offset,{toValue:destination,damping:28,stiffness:560,mass:.45,useNativeDriver:true}),
+          Animated.spring(scale,{toValue:callbacks.current.ratio,damping:27,stiffness:520,mass:.45,useNativeDriver:true}),
         ]).start();
       });
     },
     onPanResponderMove:(_e,g)=>{
       pointer.current={x:g.moveX,y:g.moveY};if(!measured.current)return;
       const snap=callbacks.current.onDrag(g.moveX,g.moveY);
-      const x=snap?g.moveX+(snap.x-g.moveX)*.7:g.moveX, y=snap?g.moveY+(snap.y-g.moveY)*.7:g.moveY;
+      const x=snap?g.moveX+(snap.x-g.moveX)*.7:g.moveX, y=snap?Math.min(g.moveY,g.moveY+(snap.y-g.moveY)*.7):g.moveY;
       offset.stopAnimation();offset.setValue({x:x-center.current.x,y:y-center.current.y-callbacks.current.lift});
     },
     onPanResponderRelease:(_e,g)=>{
