@@ -29,6 +29,7 @@ function Navigation() {
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="conversation" />
           <Stack.Screen name="games/memory" options={{ gestureEnabled: false, fullScreenGestureEnabled: false }} />
+          <Stack.Screen name="games/blocks" options={{ gestureEnabled: false, fullScreenGestureEnabled: false }} />
           <Stack.Screen name="games/maze" options={{ gestureEnabled: false, fullScreenGestureEnabled: false }} />
           <Stack.Screen name="games/2048" options={{ gestureEnabled: false, fullScreenGestureEnabled: false }} />
           <Stack.Screen name="games/island" options={{ gestureEnabled: false, fullScreenGestureEnabled: false, statusBarHidden: true }} />

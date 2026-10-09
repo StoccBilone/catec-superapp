@@ -1,6 +1,11 @@
 export type Locale = 'ru' | 'en' | 'kk';
 // UI copy only; student names, authored posts and curriculum data keep their original language.
 export const strings: Record<string, [string, string]> = {
+  'Заполняйте ряды и столбцы.': ['Fill rows and columns.', 'Қатарлар мен бағандарды толтырыңыз.'],
+  'Перетащите фигуру или выберите её и нажмите на клетку.': ['Drag a piece or select it and tap a cell.', 'Пішінді сүйреңіз немесе таңдап, ұяшықты басыңыз.'],
+  'Текущая партия будет сброшена. Рекорд сохранится.': ['This round will reset. Your best score stays.', 'Осы ойын қайта басталады. Рекорд сақталады.'],
+  'Фигура': ['Piece', 'Пішін'],
+  'Клетка': ['Cell', 'Ұяшық'],
   'Не удалось выйти': ['Could not sign out', 'Шығу мүмкін болмады'],
   'Не удалось поделиться': ['Could not share', 'Бөлісу мүмкін болмады'],
   'Поделиться публикацией': ['Share post', 'Жарияланыммен бөлісу'],

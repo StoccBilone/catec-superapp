@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Modal, StyleSheet, Switch, View, ScrollView } from 'react-native';
 import { Alert, Pressable, Text } from './Typography';
-import { ChevronLeft, ChevronRight, Check } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, Check, Palette, Type, Languages, Accessibility, GraduationCap, LockKeyhole, Bell, Info, LogOut } from 'lucide-react-native';
 import { ScreenSafeArea } from './ScreenSafeArea';
 import { useTheme, ThemePreference } from '../theme/themeContext';
 import { Language, usePreferences } from '../context/PreferencesContext';
@@ -13,22 +13,23 @@ import { ScaleSlider } from './ScaleSlider';
 
 type Page = 'language' | 'theme' | 'size' | 'pin' | 'group' | 'about';
 const titles = { language: 'Язык', theme: 'Оформление', size: 'Размер текста', pin: 'Код входа', group: 'Учебная группа', about: 'О приложении' };
+const settingIcons = { language: Languages, theme: Palette, size: Type, pin: LockKeyhole, group: GraduationCap, about: Info };
 export function SettingsModal({ visible, onClose, profile, onUpdate, onLogout }: { visible: boolean; onClose: () => void; profile: UserProfile; onUpdate: (profile: UserProfile) => Promise<void>; onLogout: () => Promise<void>; onNotifications?: () => void }) {
   const { colors, preference, setTheme } = useTheme();
   const preferences = usePreferences();
   const [page, setPage] = useState<Page | null>(null);
   const close = () => { setPage(null); onClose(); };
-  const row = (label: string, value: string, target?: Page) => <Pressable disabled={!target} onPress={() => target && setPage(target)} style={[s.row, { borderBottomColor: colors.divider }]}><Text style={[s.label, { color: colors.textPrimary }]}>{label}</Text><Text style={[s.value, { color: colors.textMuted }]}>{value}</Text>{target && <ChevronRight size={17} color={colors.textMuted} />}</Pressable>;
+  const row = (label: string, value: string, target?: Page) => { const Icon = target ? settingIcons[target] : Bell; return <Pressable disabled={!target} onPress={() => target && setPage(target)} style={[s.row, { borderBottomColor: colors.divider }]}><Icon size={21} color={colors.textSecondary}/><Text style={[s.label, { color: colors.textPrimary }]}>{label}</Text><Text style={[s.value, { color: colors.textMuted }]}>{value}</Text>{target && <ChevronRight size={17} color={colors.textMuted} />}</Pressable>; };
   const choice = (label: string, selected: boolean, action: () => void) => <Pressable onPress={action} style={[s.row, { borderBottomColor: colors.divider }]}><Text style={[s.label, { color: colors.textPrimary }]}>{label}</Text>{selected && <Check size={22} color={colors.accent} />}</Pressable>;
   const group = (title: string, children: React.ReactNode) => <View style={s.section}><Text style={[s.sectionTitle, { color: colors.textMuted }]}>{title}</Text><View style={[s.group, { backgroundColor: colors.cardBg }]}>{children}</View></View>;
   return <Modal visible={visible} animationType={preferences.motionReduced ? 'none' : 'slide'} onRequestClose={close} presentationStyle="fullScreen">
     <ScreenSafeArea modal style={{ flex: 1, backgroundColor: colors.canvas }}>
       <View style={s.header}><GlassTool label="Назад" onPress={close}><ChevronLeft color={colors.textPrimary} size={22} /></GlassTool><Text style={[s.title, { color: colors.textPrimary }]}>Настройки</Text></View>
       <ScrollView contentContainerStyle={s.content}>
-        {group('Интерфейс', <>{row('Оформление', { light: 'Светлое', dark: 'Тёмное', system: 'Системное' }[preference], 'theme')}{row('Размер текста', `${Math.round(preferences.interfaceScale * 100)}%`, 'size')}{row('Язык', { ru: 'Русский', en: 'English', kk: 'Қазақша' }[preferences.language], 'language')}<View style={[s.row, { borderBottomWidth: 0 }]}><Text style={[s.label, { color: colors.textPrimary }]}>Уменьшить анимации</Text><Switch value={preferences.reduceMotion} onValueChange={reduceMotion => preferences.update({ reduceMotion })} trackColor={{ true: colors.textSecondary }} /></View></>)}
+        {group('Интерфейс', <>{row('Оформление', { light: 'Светлое', dark: 'Тёмное', system: 'Системное' }[preference], 'theme')}{row('Размер текста', `${Math.round(preferences.interfaceScale * 100)}%`, 'size')}{row('Язык', { ru: 'Русский', en: 'English', kk: 'Қазақша' }[preferences.language], 'language')}<View style={[s.row, { borderBottomWidth: 0 }]}><Accessibility size={21} color={colors.textSecondary}/><Text style={[s.label, { color: colors.textPrimary }]}>Уменьшить анимации</Text><Switch value={preferences.reduceMotion} onValueChange={reduceMotion => preferences.update({ reduceMotion })} trackColor={{ true: colors.textSecondary }} /></View></>)}
         {group('Аккаунт', <>{row('Учебная группа', profile.group, 'group')}{row('Код входа', '••••', 'pin')}</>)}
         {group('Приложение', <>{row('Уведомления', 'В разработке')}{row('О приложении', '1.0.0', 'about')}</>)}
-        <Pressable style={[s.logout, { backgroundColor: colors.cardBg }]} onPress={() => Alert.alert('Выход из профиля', 'При следующем входе потребуется PIN-код.', [{ text: 'Отмена', style: 'cancel' }, { text: 'Выйти', style: 'destructive', onPress: () => { void onLogout().then(close).catch(() => Alert.alert('Не удалось выйти', 'Попробуйте ещё раз.')); } }])}><Text style={{ color: colors.danger, fontSize: 17 }}>Выйти из аккаунта</Text></Pressable>
+        <Pressable style={[s.logout, { backgroundColor: colors.cardBg }]} onPress={() => Alert.alert('Выход из профиля', 'При следующем входе потребуется PIN-код.', [{ text: 'Отмена', style: 'cancel' }, { text: 'Выйти', style: 'destructive', onPress: () => { void onLogout().then(close).catch(() => Alert.alert('Не удалось выйти', 'Попробуйте ещё раз.')); } }])}><LogOut size={21} color={colors.danger}/><Text style={{ color: colors.danger, fontSize: 17 }}>Выйти из аккаунта</Text></Pressable>
       </ScrollView>
       <GlassModal visible={!!page} onClose={() => setPage(null)}>
         <Text style={[s.title, { color: colors.textPrimary, marginBottom: 20 }]}>{page ? titles[page] : ''}</Text>
@@ -42,4 +43,4 @@ export function SettingsModal({ visible, onClose, profile, onUpdate, onLogout }:
     </ScreenSafeArea>
   </Modal>;
 }
-const s = StyleSheet.create({ header: { height: 72, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 12 }, back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }, title: { fontSize: 23, fontWeight: '600' }, content: { padding: 20, paddingBottom: 40 }, section: { marginBottom: 26 }, sectionTitle: { fontSize: 13, marginLeft: 16, marginBottom: 9 }, group: { borderRadius: 18, overflow: 'hidden', paddingHorizontal: 16 }, row: { minHeight: 58, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', gap: 10, borderBottomWidth: StyleSheet.hairlineWidth }, label: { flex: 1, fontSize: 16 }, value: { maxWidth: '42%', fontSize: 13, textAlign: 'right' }, center: { alignItems: 'center', paddingVertical: 30 }, logout: { padding: 18, alignItems: 'center', borderRadius: 18 }, preview: { padding: 20, borderRadius: 20 }, previewRow: { marginTop: 20, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, reset: { alignItems: 'center', padding: 12 } });
+const s = StyleSheet.create({ header: { height: 72, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 12 }, back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }, title: { fontSize: 23, fontWeight: '600' }, content: { padding: 20, paddingBottom: 40 }, section: { marginBottom: 26 }, sectionTitle: { fontSize: 13, marginLeft: 16, marginBottom: 9 }, group: { borderRadius: 18, overflow: 'hidden', paddingHorizontal: 16 }, row: { minHeight: 58, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', gap: 10, borderBottomWidth: StyleSheet.hairlineWidth }, label: { flex: 1, fontSize: 16 }, value: { maxWidth: '42%', fontSize: 13, textAlign: 'right' }, center: { alignItems: 'center', paddingVertical: 30 }, logout: { padding: 18, flexDirection: 'row', justifyContent: 'center', gap: 10, alignItems: 'center', borderRadius: 18 }, preview: { padding: 20, borderRadius: 20 }, previewRow: { marginTop: 20, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, reset: { alignItems: 'center', padding: 12 } });

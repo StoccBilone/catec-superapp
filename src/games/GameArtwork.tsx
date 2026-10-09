@@ -9,6 +9,10 @@ export function GameArtwork({ game }: { game: GameId }) {
   const ink = colors.textPrimary;
   const soft = colors.cardBorderHighlight;
   return <Svg width="100%" height="100%" viewBox="0 0 144 144">
+    {game === 'blocks' && <>
+      <Rect x={19} y={19} width={106} height={106} rx={22} fill={colors.canvas}/>
+      {[[0,0],[1,0],[2,0],[2,1],[0,3],[1,3],[1,4],[3,2],[3,3],[4,2],[4,3]].map(([r,c],i)=><Rect key={i} x={27+c*19} y={27+r*19} width={16} height={16} rx={4} fill={ink} opacity={i<4?1:i<7?.55:.3}/>)}
+    </>}
     {game === '2048' && <>
       <Rect x={17} y={17} width={110} height={110} rx={25} fill={colors.canvas} />
       {[{ x: 25, y: 25, n: '2' }, { x: 76, y: 25, n: '4' }, { x: 25, y: 76, n: '8' }, { x: 76, y: 76, n: '16' }].map((tile, i) => <G key={tile.n}>

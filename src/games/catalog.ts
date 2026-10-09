@@ -4,5 +4,6 @@ export const GAME_CATALOG = [
   { id: 'island', title: 'Hit the Island', description: 'Отбивайте мяч в островок.', route: '/games/island' },
   { id: 'maze', title: 'Лабиринт', description: 'Наклоняйте iPhone и ведите шарик.', route: '/games/maze' },
   { id: 'memory', title: 'Memory', description: 'Находите одинаковые пары.', route: '/games/memory' },
+  { id: 'blocks', title: 'Block Blast', description: 'Заполняйте ряды и столбцы.', route: '/games/blocks' },
 ] as const;
 export type GameId = typeof GAME_CATALOG[number]['id'];
