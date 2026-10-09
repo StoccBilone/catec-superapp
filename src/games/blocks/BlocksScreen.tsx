@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, PanResponder, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Animated, Easing, PanResponder, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { ChevronLeft, RotateCcw } from 'lucide-react-native';
@@ -12,10 +12,10 @@ import { usePreferences } from '../../context/PreferencesContext';
 import { translate } from '../../i18n/strings';
 import { BlocksGame, SHAPES, canPlay, fits, newBlocks, place } from './engine';
 import { loadBlocks, saveBlocks } from './storage';
-import { magneticTarget, pieceLift, snappedPointer } from './interaction';
+import { followOffset, magneticTarget, pieceLift, snappedPointer } from './interaction';
 
 type Target = {slot:number; row:number; col:number};
-function Piece({shape, slot, selected, cell, lift, blocked, onSelect, onDrag, onDrop}: {shape:number; slot:number; selected:boolean; cell:number; lift:number; blocked:boolean; onSelect:()=>void; onDrag:(x:number,y:number)=>{x:number;y:number}|null; onDrop:(x:number,y:number)=>boolean}) {
+function Piece({shape, slot, selected, cell, lift, blocked, onSelect, onDrag, onDrop}: {shape:number; slot:number; selected:boolean; cell:number; lift:number; blocked:boolean; onSelect:()=>void; onDrag:(x:number,y:number)=>void; onDrop:(x:number,y:number)=>boolean}) {
   const {colors}=useTheme(); const {motionReduced,language}=usePreferences();
   const cells=SHAPES[shape], rows=Math.max(...cells.map(p=>p[0]))+1, cols=Math.max(...cells.map(p=>p[1]))+1;
   const unit=Math.min(25,cell*.58);
@@ -25,12 +25,12 @@ function Piece({shape, slot, selected, cell, lift, blocked, onSelect, onDrag, on
   const callbacks=useRef({blocked,onSelect,onDrag,onDrop,motionReduced,lift,ratio:cell/unit});
   useEffect(()=>{callbacks.current={blocked,onSelect,onDrag,onDrop,motionReduced,lift,ratio:cell/unit};},[blocked,onSelect,onDrag,onDrop,motionReduced,lift,cell,unit]);
   useEffect(()=>{alive.current=true;return()=>{alive.current=false;held.current=false;offset.stopAnimation();scale.stopAnimation();};},[offset,scale]);
-  useEffect(()=>{const animation=Animated.spring(scale,{toValue:1,damping:20,stiffness:230,mass:.7,useNativeDriver:true});if(motionReduced)scale.setValue(1);else animation.start();return()=>animation.stop();},[scale,motionReduced]);
+  useEffect(()=>{const animation=Animated.timing(scale,{toValue:1,duration:110,easing:Easing.out(Easing.cubic),useNativeDriver:true});if(motionReduced)scale.setValue(1);else animation.start();return()=>animation.stop();},[scale,motionReduced]);
   const returnHome=()=>{
     held.current=false;
-    const options={useNativeDriver:true,damping:26,stiffness:420,mass:.5};
+    const options={useNativeDriver:true,duration:140,easing:Easing.out(Easing.cubic)};
     if(callbacks.current.motionReduced){offset.setValue({x:0,y:0});scale.setValue(1);setDragging(false);return;}
-    Animated.parallel([Animated.spring(offset,{...options,toValue:{x:0,y:0}}),Animated.spring(scale,{...options,toValue:1})]).start(({finished})=>{if(finished&&alive.current&&!held.current)setDragging(false);});
+    Animated.parallel([Animated.timing(offset,{...options,toValue:{x:0,y:0}}),Animated.timing(scale,{...options,toValue:1})]).start(({finished})=>{if(finished&&alive.current&&!held.current)setDragging(false);});
   };
   // eslint-disable-next-line react-hooks/refs
   const [responder]=useState(()=>PanResponder.create({
@@ -43,19 +43,19 @@ function Piece({shape, slot, selected, cell, lift, blocked, onSelect, onDrag, on
       if(!callbacks.current.motionReduced)void Haptics.selectionAsync().catch(()=>{});
       source.current?.measureInWindow((x,y,w,h)=>{
         if(!held.current)return;center.current={x:x+w/2,y:y+h/2};measured.current=true;
-        const destination={x:pointer.current.x-center.current.x,y:pointer.current.y-center.current.y-callbacks.current.lift};
+        const destination=followOffset(pointer.current,center.current,callbacks.current.lift);
         if(callbacks.current.motionReduced){offset.setValue(destination);scale.setValue(callbacks.current.ratio);}
         else Animated.parallel([
-          Animated.spring(offset,{toValue:destination,damping:28,stiffness:560,mass:.45,useNativeDriver:true}),
-          Animated.spring(scale,{toValue:callbacks.current.ratio,damping:27,stiffness:520,mass:.45,useNativeDriver:true}),
+          Animated.timing(offset,{toValue:destination,duration:85,easing:Easing.out(Easing.cubic),useNativeDriver:true}),
+          Animated.timing(scale,{toValue:callbacks.current.ratio,duration:85,easing:Easing.out(Easing.cubic),useNativeDriver:true}),
         ]).start();
       });
     },
     onPanResponderMove:(_e,g)=>{
       pointer.current={x:g.moveX,y:g.moveY};if(!measured.current)return;
-      const snap=callbacks.current.onDrag(g.moveX,g.moveY);
-      const x=snap?g.moveX+(snap.x-g.moveX)*.7:g.moveX, y=snap?Math.min(g.moveY,g.moveY+(snap.y-g.moveY)*.7):g.moveY;
-      offset.stopAnimation();offset.setValue({x:x-center.current.x,y:y-center.current.y-callbacks.current.lift});
+      offset.stopAnimation();scale.stopAnimation();scale.setValue(callbacks.current.ratio);
+      offset.setValue(followOffset(pointer.current,center.current,callbacks.current.lift));
+      callbacks.current.onDrag(g.moveX,g.moveY);
     },
     onPanResponderRelease:(_e,g)=>{
       const moved=Math.abs(g.dx)+Math.abs(g.dy)>8;
@@ -127,7 +127,7 @@ export function BlocksScreen({profileId}:{profileId:string}) {
         {placed.map(i=><Animated.View pointerEvents="none" key={`placed:${i}`} style={{position:'absolute',left:(i%8)*cell+2,top:Math.floor(i/8)*cell+2,width:cell-4,height:cell-4,borderRadius:Math.min(7,cell*.17),backgroundColor:clearPreview.includes(i)?colors.textSecondary:colors.textPrimary,transform:[{scale:pop}]}}/>)}
         <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill,{opacity:flash}]}>{cleared.map(i=><Animated.View key={i} style={{position:'absolute',left:(i%8)*cell+2,top:Math.floor(i/8)*cell+2,width:cell-4,height:cell-4,borderRadius:7,backgroundColor:colors.textPrimary,transform:[{scale:flash.interpolate({inputRange:[0,1],outputRange:[.3,1.06]})}]}}/>)}</Animated.View>
       </Animated.View>
-      <View style={[s.tray,{width:size}]}>{game.pieces.map((shape,slot)=>shape===null?<View key={`used:${slot}`} style={s.slot}/>:<Piece key={`${Math.floor(game.moves/3)}:${slot}`} shape={shape} slot={slot} selected={selected===slot} cell={cell} lift={pieceLift(shape,cell)} blocked={lost||sheet} onSelect={()=>{measure();snap.current=null;setTarget(null);setSelected(slot);}} onDrag={(x,y)=>{const next=locate(slot,x,y);snap.current=next;setTarget(previous=>previous?.row===next?.row&&previous?.col===next?.col&&previous?.slot===next?.slot?previous:next);return next?snappedPointer(shape,cell,origin.current,next):null;}} onDrop={(x,y)=>{const t=locate(slot,x,y);const accepted=!!t&&commit(slot,t.row,t.col);snap.current=null;setTarget(null);return accepted;}}/>)}</View>
+      <View style={[s.tray,{width:size}]}>{game.pieces.map((shape,slot)=>shape===null?<View key={`used:${slot}`} style={s.slot}/>:<Piece key={`${Math.floor(game.moves/3)}:${slot}`} shape={shape} slot={slot} selected={selected===slot} cell={cell} lift={pieceLift(shape,cell)} blocked={lost||sheet} onSelect={()=>{measure();snap.current=null;setTarget(null);setSelected(slot);}} onDrag={(x,y)=>{const next=locate(slot,x,y);snap.current=next;setTarget(previous=>previous?.row===next?.row&&previous?.col===next?.col&&previous?.slot===next?.slot?previous:next);}} onDrop={(x,y)=>{const t=locate(slot,x,y);const accepted=!!t&&commit(slot,t.row,t.col);snap.current=null;setTarget(null);return accepted;}}/>)}</View>
       {lost?<Pressable onPress={restart} style={[s.finish,{backgroundColor:colors.cardBg}]}><Text style={{color:colors.textPrimary,fontSize:18,fontWeight:'600'}}>Ходов больше нет</Text><Text style={{color:colors.textSecondary,marginTop:5}}>Ещё раз</Text></Pressable>:<Text style={{color:colors.textMuted,fontSize:12,textAlign:'center',maxWidth:size}}>Перетащите фигуру или выберите её и нажмите на клетку.</Text>}
       {saveError&&<Pressable onPress={()=>{if(current.current)persist(current.current);}}><Text style={{color:colors.danger,fontSize:12,marginTop:8}}>Не удалось сохранить игру. Нажмите, чтобы повторить.</Text></Pressable>}
     </View>}

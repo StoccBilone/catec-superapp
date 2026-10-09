@@ -4,6 +4,9 @@ export function pieceSize(shape: number) {
   return { rows: Math.max(...cells.map(([r]) => r)) + 1, columns: Math.max(...cells.map(([,c]) => c)) + 1 };
 }
 export function pieceLift(shape: number, cell: number) { return Math.max(84, pieceSize(shape).rows * cell / 2 + 42); }
+export function followOffset(pointer:{x:number;y:number},center:{x:number;y:number},lift:number) {
+  return {x:pointer.x-center.x,y:pointer.y-center.y-lift};
+}
 export function dropTarget(shape: number, cell: number, origin: {x:number;y:number}, pointer: {x:number;y:number}) {
   const {rows,columns}=pieceSize(shape);
   return {row:Math.round((pointer.y-pieceLift(shape,cell)-origin.y)/cell-rows/2), col:Math.round((pointer.x-origin.x)/cell-columns/2)};
