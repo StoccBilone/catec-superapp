@@ -12,6 +12,18 @@ const interactionModule=new Module(interactionFilename);
 interactionModule.require=name=>name==='./engine'?mod.exports:require(name);
 interactionModule._compile(ts.transpileModule(fs.readFileSync(interactionFilename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,interactionFilename);
 const {pieceSize,pieceLift,dropTarget}=interactionModule.exports;
+const {magneticTarget,snappedPointer}=interactionModule.exports;
+const magnetBoard=Array(64).fill(0), magnetOrigin={x:16,y:210}, magnetCell=45;
+const at=(r,c)=>snappedPointer(0,magnetCell,magnetOrigin,{row:r,col:c});
+assert.deepEqual(magneticTarget(magnetBoard,0,magnetCell,magnetOrigin,at(3.15,2.2)),{row:3,col:2});
+magnetBoard[3*8+2]=1;
+const nearby=magneticTarget(magnetBoard,0,magnetCell,magnetOrigin,at(3,2));
+assert.ok(nearby&&fits(magnetBoard,0,nearby.row,nearby.col),'occupied aim must choose a nearby free place');
+assert.equal(magneticTarget(Array(64).fill(1),0,magnetCell,magnetOrigin,at(3,2)),null);
+assert.equal(magneticTarget(magnetBoard,0,magnetCell,magnetOrigin,{x:-1000,y:-1000}),null);
+assert.deepEqual(magneticTarget(Array(64).fill(0),0,magnetCell,magnetOrigin,at(3,2.55),{row:3,col:2}),{row:3,col:2},'small finger jitter must not switch the preview');
+assert.deepEqual(magneticTarget(Array(64).fill(0),0,magnetCell,magnetOrigin,at(3,2.8),{row:3,col:2}),{row:3,col:3});
+assert.deepEqual(magneticTarget(Array(64).fill(0),7,magnetCell,magnetOrigin,snappedPointer(7,magnetCell,magnetOrigin,{row:7,col:7})),null,'magnet must not reach distant legal cells');
 for(let shape=0;shape<SHAPES.length;shape++){
   for(const cell of [28,45,52.5]){
     const {rows,columns}=pieceSize(shape),origin={x:16,y:210};

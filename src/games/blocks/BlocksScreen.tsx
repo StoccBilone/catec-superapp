@@ -12,10 +12,10 @@ import { usePreferences } from '../../context/PreferencesContext';
 import { translate } from '../../i18n/strings';
 import { BlocksGame, SHAPES, canPlay, fits, newBlocks, place } from './engine';
 import { loadBlocks, saveBlocks } from './storage';
-import { dropTarget, pieceLift } from './interaction';
+import { magneticTarget, pieceLift, snappedPointer } from './interaction';
 
 type Target = {slot:number; row:number; col:number};
-function Piece({shape, slot, selected, cell, lift, blocked, onSelect, onDrag, onDrop}: {shape:number; slot:number; selected:boolean; cell:number; lift:number; blocked:boolean; onSelect:()=>void; onDrag:(x:number,y:number)=>void; onDrop:(x:number,y:number)=>boolean}) {
+function Piece({shape, slot, selected, cell, lift, blocked, onSelect, onDrag, onDrop}: {shape:number; slot:number; selected:boolean; cell:number; lift:number; blocked:boolean; onSelect:()=>void; onDrag:(x:number,y:number)=>{x:number;y:number}|null; onDrop:(x:number,y:number)=>boolean}) {
   const {colors}=useTheme(); const {motionReduced,language}=usePreferences();
   const cells=SHAPES[shape], rows=Math.max(...cells.map(p=>p[0]))+1, cols=Math.max(...cells.map(p=>p[1]))+1;
   const unit=Math.min(25,cell*.58);
@@ -53,8 +53,9 @@ function Piece({shape, slot, selected, cell, lift, blocked, onSelect, onDrag, on
     },
     onPanResponderMove:(_e,g)=>{
       pointer.current={x:g.moveX,y:g.moveY};if(!measured.current)return;
-      offset.stopAnimation();offset.setValue({x:g.moveX-center.current.x,y:g.moveY-center.current.y-callbacks.current.lift});
-      callbacks.current.onDrag(g.moveX,g.moveY);
+      const snap=callbacks.current.onDrag(g.moveX,g.moveY);
+      const x=snap?g.moveX+(snap.x-g.moveX)*.7:g.moveX, y=snap?g.moveY+(snap.y-g.moveY)*.7:g.moveY;
+      offset.stopAnimation();offset.setValue({x:x-center.current.x,y:y-center.current.y-callbacks.current.lift});
     },
     onPanResponderRelease:(_e,g)=>{
       const moved=Math.abs(g.dx)+Math.abs(g.dy)>8;
@@ -76,6 +77,7 @@ export function BlocksScreen({profileId}:{profileId:string}) {
   const [game,setGame]=useState<BlocksGame|null>(null), [selected,setSelected]=useState<number|null>(null), [target,setTarget]=useState<Target|null>(null);
   const [sheet,setSheet]=useState(false), [loadError,setLoadError]=useState(false), [saveError,setSaveError]=useState(false), [retry,setRetry]=useState(0), [cleared,setCleared]=useState<number[]>([]), [placed,setPlaced]=useState<number[]>([]);
   const current=useRef<BlocksGame|null>(null), mounted=useRef(true), revision=useRef(0), board=useRef<View>(null), origin=useRef({x:0,y:0});
+  const snap=useRef<Target|null>(null);
   const [flash]=useState(()=>new Animated.Value(0)), [pop]=useState(()=>new Animated.Value(1)), [pulse]=useState(()=>new Animated.Value(1));
   const clearAnimation=useRef<Animated.CompositeAnimation|null>(null);
   useEffect(()=>()=>{clearAnimation.current?.stop();flash.stopAnimation();pop.stopAnimation();pulse.stopAnimation();},[flash,pop,pulse]);
@@ -90,19 +92,25 @@ export function BlocksScreen({profileId}:{profileId:string}) {
     current.current=result.game; setGame(result.game);setSelected(null);setTarget(null);persist(result.game);
     setPlaced(SHAPES[shape].map(([r,c])=>(row+r)*8+col+c).filter(i=>!result.cleared.includes(i)));
     pop.stopAnimation();pop.setValue(motionReduced?1:.86);
-    if(!motionReduced)Animated.spring(pop,{toValue:1,damping:13,stiffness:330,mass:.6,useNativeDriver:true}).start();
+    if(!motionReduced)Animated.spring(pop,{toValue:1,damping:24,stiffness:520,mass:.45,useNativeDriver:true}).start();
     if(result.cleared.length){
       setCleared(result.cleared);clearAnimation.current?.stop();flash.setValue(1);
       clearAnimation.current=Animated.sequence([Animated.delay(motionReduced?0:60),Animated.timing(flash,{toValue:0,duration:motionReduced?0:280,useNativeDriver:true})]);clearAnimation.current.start();
       pulse.stopAnimation();pulse.setValue(motionReduced?1:1.025);
       if(!motionReduced)Animated.spring(pulse,{toValue:1,damping:16,stiffness:260,mass:.7,useNativeDriver:true}).start();
     }
-    if(!motionReduced)void Haptics.impactAsync(result.lines>1?Haptics.ImpactFeedbackStyle.Heavy:result.lines?Haptics.ImpactFeedbackStyle.Medium:Haptics.ImpactFeedbackStyle.Light).catch(()=>{});
+    if(!motionReduced)void Haptics.impactAsync(result.lines?Haptics.ImpactFeedbackStyle.Light:Haptics.ImpactFeedbackStyle.Soft).catch(()=>{});
     return true;
   };
   const locate=(slot:number,x:number,y:number):Target|null=>{
     const shape=current.current?.pieces[slot]; if(shape==null)return null;
-    return {slot,...dropTarget(shape,cell,origin.current,{x,y})};
+    const next=magneticTarget(current.current!.board,shape,cell,origin.current,{x,y},snap.current?.slot===slot?snap.current:null);
+    return next?{slot,...next}:null;
+  };
+  const chooseCell=(slot:number,row:number,col:number)=>{
+    const value=current.current, shape=value?.pieces[slot];if(!value||shape==null)return;
+    const next=magneticTarget(value.board,shape,cell,origin.current,snappedPointer(shape,cell,origin.current,{row,col}));
+    if(next)commit(slot,next.row,next.col);
   };
   const lost=!!game&&!canPlay(game);
   const previewShape=target&&game?.pieces[target.slot];
@@ -115,11 +123,11 @@ export function BlocksScreen({profileId}:{profileId:string}) {
     {!game?<View style={s.center}>{loadError?<Pressable onPress={()=>setRetry(v=>v+1)}><Text style={{color:colors.textPrimary}}>Не удалось открыть игру. Нажмите, чтобы повторить.</Text></Pressable>:<ActivityIndicator color={colors.textPrimary}/>}</View>:<View style={s.center}>
       <View style={[s.stats,{width:size}]}>{[{label:'Счёт',value:game.score},{label:'Рекорд',value:game.best}].map(item=><View key={item.label}><Text style={{color:colors.textMuted,fontSize:13}}>{item.label}</Text><Text translate={false} style={{color:colors.textPrimary,fontSize:30,fontWeight:'600',fontVariant:['tabular-nums']}}>{item.value}</Text></View>)}</View>
       <Animated.View ref={board} onLayout={measure} style={{width:size,height:size,backgroundColor:colors.cardBg,borderRadius:18,overflow:'hidden',transform:[{scale:pulse}]}}>
-        {game.board.map((value,i)=>{const highlighted=valid&&preview.includes(i); return <Pressable key={i} accessibilityLabel={`${translate('Клетка',language)} ${Math.floor(i/8)+1}, ${i%8+1}`} accessibilityRole="button" disabled={selected===null||lost||sheet} onPress={()=>{if(selected!==null)commit(selected,Math.floor(i/8),i%8);}} style={{position:'absolute',left:(i%8)*cell+2,top:Math.floor(i/8)*cell+2,width:cell-4,height:cell-4,borderRadius:Math.min(7,cell*.17),backgroundColor:clearPreview.includes(i)?colors.textSecondary:(value&&!placed.includes(i))||highlighted?colors.textPrimary:mode==='dark'?'#242625':'#E5E5E5',opacity:highlighted?.45:1}}/>;})}
+        {game.board.map((value,i)=>{const highlighted=valid&&preview.includes(i); return <Pressable key={i} accessibilityLabel={`${translate('Клетка',language)} ${Math.floor(i/8)+1}, ${i%8+1}`} accessibilityRole="button" disabled={selected===null||lost||sheet} onPress={()=>{if(selected!==null)chooseCell(selected,Math.floor(i/8),i%8);}} style={{position:'absolute',left:(i%8)*cell+2,top:Math.floor(i/8)*cell+2,width:cell-4,height:cell-4,borderRadius:Math.min(7,cell*.17),backgroundColor:clearPreview.includes(i)?colors.textSecondary:(value&&!placed.includes(i))||highlighted?colors.textPrimary:mode==='dark'?'#242625':'#E5E5E5',opacity:highlighted?.45:1}}/>;})}
         {placed.map(i=><Animated.View pointerEvents="none" key={`placed:${i}`} style={{position:'absolute',left:(i%8)*cell+2,top:Math.floor(i/8)*cell+2,width:cell-4,height:cell-4,borderRadius:Math.min(7,cell*.17),backgroundColor:clearPreview.includes(i)?colors.textSecondary:colors.textPrimary,transform:[{scale:pop}]}}/>)}
         <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill,{opacity:flash}]}>{cleared.map(i=><Animated.View key={i} style={{position:'absolute',left:(i%8)*cell+2,top:Math.floor(i/8)*cell+2,width:cell-4,height:cell-4,borderRadius:7,backgroundColor:colors.textPrimary,transform:[{scale:flash.interpolate({inputRange:[0,1],outputRange:[.3,1.06]})}]}}/>)}</Animated.View>
       </Animated.View>
-      <View style={[s.tray,{width:size}]}>{game.pieces.map((shape,slot)=>shape===null?<View key={`used:${slot}`} style={s.slot}/>:<Piece key={`${Math.floor(game.moves/3)}:${slot}`} shape={shape} slot={slot} selected={selected===slot} cell={cell} lift={pieceLift(shape,cell)} blocked={lost||sheet} onSelect={()=>{measure();setSelected(slot);}} onDrag={(x,y)=>{const next=locate(slot,x,y);setTarget(previous=>previous?.row===next?.row&&previous?.col===next?.col&&previous?.slot===next?.slot?previous:next);}} onDrop={(x,y)=>{const t=locate(slot,x,y);const accepted=!!t&&commit(slot,t.row,t.col);setTarget(null);return accepted;}}/>)}</View>
+      <View style={[s.tray,{width:size}]}>{game.pieces.map((shape,slot)=>shape===null?<View key={`used:${slot}`} style={s.slot}/>:<Piece key={`${Math.floor(game.moves/3)}:${slot}`} shape={shape} slot={slot} selected={selected===slot} cell={cell} lift={pieceLift(shape,cell)} blocked={lost||sheet} onSelect={()=>{measure();snap.current=null;setTarget(null);setSelected(slot);}} onDrag={(x,y)=>{const next=locate(slot,x,y);snap.current=next;setTarget(previous=>previous?.row===next?.row&&previous?.col===next?.col&&previous?.slot===next?.slot?previous:next);return next?snappedPointer(shape,cell,origin.current,next):null;}} onDrop={(x,y)=>{const t=locate(slot,x,y);const accepted=!!t&&commit(slot,t.row,t.col);snap.current=null;setTarget(null);return accepted;}}/>)}</View>
       {lost?<Pressable onPress={restart} style={[s.finish,{backgroundColor:colors.cardBg}]}><Text style={{color:colors.textPrimary,fontSize:18,fontWeight:'600'}}>Ходов больше нет</Text><Text style={{color:colors.textSecondary,marginTop:5}}>Ещё раз</Text></Pressable>:<Text style={{color:colors.textMuted,fontSize:12,textAlign:'center',maxWidth:size}}>Перетащите фигуру или выберите её и нажмите на клетку.</Text>}
       {saveError&&<Pressable onPress={()=>{if(current.current)persist(current.current);}}><Text style={{color:colors.danger,fontSize:12,marginTop:8}}>Не удалось сохранить игру. Нажмите, чтобы повторить.</Text></Pressable>}
     </View>}
