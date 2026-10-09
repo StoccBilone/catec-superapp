@@ -28,7 +28,7 @@ function Piece({shape, slot, selected, cell, lift, blocked, onSelect, onDrag, on
   useEffect(()=>{const animation=Animated.timing(scale,{toValue:1,duration:110,easing:Easing.out(Easing.cubic),useNativeDriver:true});if(motionReduced)scale.setValue(1);else animation.start();return()=>animation.stop();},[scale,motionReduced]);
   const returnHome=()=>{
     held.current=false;
-    const options={useNativeDriver:true,duration:140,easing:Easing.out(Easing.cubic)};
+    const options={useNativeDriver:true,duration:115,easing:Easing.out(Easing.cubic)};
     if(callbacks.current.motionReduced){offset.setValue({x:0,y:0});scale.setValue(1);setDragging(false);return;}
     Animated.parallel([Animated.timing(offset,{...options,toValue:{x:0,y:0}}),Animated.timing(scale,{...options,toValue:1})]).start(({finished})=>{if(finished&&alive.current&&!held.current)setDragging(false);});
   };
@@ -46,8 +46,8 @@ function Piece({shape, slot, selected, cell, lift, blocked, onSelect, onDrag, on
         const destination=followOffset(pointer.current,center.current,callbacks.current.lift);
         if(callbacks.current.motionReduced){offset.setValue(destination);scale.setValue(callbacks.current.ratio);}
         else Animated.parallel([
-          Animated.timing(offset,{toValue:destination,duration:85,easing:Easing.out(Easing.cubic),useNativeDriver:true}),
-          Animated.timing(scale,{toValue:callbacks.current.ratio,duration:85,easing:Easing.out(Easing.cubic),useNativeDriver:true}),
+          Animated.timing(offset,{toValue:destination,duration:60,easing:Easing.out(Easing.cubic),useNativeDriver:true}),
+          Animated.timing(scale,{toValue:callbacks.current.ratio,duration:60,easing:Easing.out(Easing.cubic),useNativeDriver:true}),
         ]).start();
       });
     },

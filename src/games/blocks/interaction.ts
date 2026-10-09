@@ -3,7 +3,7 @@ export function pieceSize(shape: number) {
   const cells = SHAPES[shape];
   return { rows: Math.max(...cells.map(([r]) => r)) + 1, columns: Math.max(...cells.map(([,c]) => c)) + 1 };
 }
-export function pieceLift(shape: number, cell: number) { return Math.max(84, pieceSize(shape).rows * cell / 2 + 42); }
+export function pieceLift(shape: number, cell: number) { return Math.max(94, pieceSize(shape).rows * cell / 2 + 52); }
 export function followOffset(pointer:{x:number;y:number},center:{x:number;y:number},lift:number) {
   return {x:pointer.x-center.x,y:pointer.y-center.y-lift};
 }

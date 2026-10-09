@@ -34,7 +34,7 @@ for(let shape=0;shape<SHAPES.length;shape++){
   for(const cell of [28,45,52.5]){
     const {rows,columns}=pieceSize(shape),origin={x:16,y:210};
     const lift=pieceLift(shape,cell);
-    assert.ok(lift-rows*cell/2>=42,'held piece must remain above the finger');
+    assert.ok(lift-rows*cell/2>=52,'held piece must remain above the finger');
     assert.deepEqual(dropTarget(shape,cell,origin,{x:origin.x+(2+columns/2)*cell,y:origin.y+(3+rows/2)*cell+lift}),{row:3,col:2},'preview and full-size ghost must share one anchor');
     assert.ok(dropTarget(shape,cell,origin,{x:-1000,y:-1000}).row<0);
   }
