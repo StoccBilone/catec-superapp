@@ -3,12 +3,13 @@ import { ActivityIndicator, Animated, Easing, Image, Keyboard, ScrollView, Style
 import { Text, TextInput, Pressable, Alert } from '../components/Typography';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import { Check, ChevronDown, Delete, LockKeyhole } from 'lucide-react-native';
+import { ArrowLeft, Check, ChevronDown, Delete, LockKeyhole } from 'lucide-react-native';
 import { UserProfile } from '../types';
 import { CATEC_GROUPS } from '../data/catecData';
 import { useTheme } from '../theme/themeContext';
 import { authPalette } from '../theme/authTheme';
 import { usePreferences } from '../context/PreferencesContext';
+import { CatecAvatar } from '../components/CatecAvatar';
 import { GlassModal } from '../components/GlassModal';
 
 interface AuthScreenProps {
@@ -25,6 +26,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   const { mode } = useTheme();
   const colors = authPalette(mode);
   const { motionReduced } = usePreferences();
+  const [welcome, setWelcome] = useState(true);
   const [groupPicker, setGroupPicker] = useState(false);
   const [formError, setFormError] = useState('');
   const [entrance] = useState(() => new Animated.Value(0));
@@ -46,7 +48,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   const entering = useRef(false);
   const alive = useRef(true);
   const pinReset = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => { entrance.setValue(0); const animation = Animated.timing(entrance, { toValue: 1, duration: motionReduced ? 0 : 260, easing: Easing.out(Easing.cubic), useNativeDriver: true }); animation.start(); return () => animation.stop(); }, [entrance, motionReduced, isRegisterMode]);
+  useEffect(() => { entrance.setValue(0); const animation = Animated.timing(entrance, { toValue: 1, duration: motionReduced ? 0 : 260, easing: Easing.out(Easing.cubic), useNativeDriver: true }); animation.start(); return () => animation.stop(); }, [entrance, motionReduced, isRegisterMode, welcome]);
   useEffect(() => { alive.current = true; return () => { alive.current = false; if (pinReset.current) clearTimeout(pinReset.current); }; }, []);
   const login = async (profile: UserProfile, register = false) => {
     if (entering.current) return;
@@ -144,7 +146,17 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
     <LinearGradient pointerEvents="none" colors={[colors.wash,colors.background,colors.background]} locations={[0,.55,1]} style={StyleSheet.absoluteFill}/>
     <Animated.View style={{flex:1,opacity:entrance,transform:[{translateY:entrance.interpolate({inputRange:[0,1],outputRange:[motionReduced?0:12,0]})}]}}>
       <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" contentInsetAdjustmentBehavior="never" showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
-        <View style={s.content}>{brand}
+        <View style={s.content}>
+        {welcome ? <View style={s.welcome}>
+          {brand}
+          <View style={s.welcomeAvatar}><CatecAvatar size={216}/></View>
+          <Text accessibilityRole="header" style={[s.heading,s.center,{color:colors.text}]}>Добро пожаловать в CATEC</Text>
+          <Text style={[s.subtitle,s.center,{color:colors.secondary}]}>Расписание, новости и общение — в одном приложении.</Text>
+          <View style={s.welcomeActions}><AuthAction title="Начать" onPress={()=>{setIsRegisterMode(true);setWelcome(false);}} submitting={false} colors={colors}/>
+          {existingProfile&&<Pressable accessibilityRole="button" onPress={()=>{setIsRegisterMode(false);setWelcome(false);}} style={s.textButton}><Text style={{color:colors.action,fontSize:15,fontWeight:'600'}}>Войти по коду</Text></Pressable>}</View>
+        </View> : <>
+        <Pressable accessibilityRole="button" accessibilityLabel="Назад" disabled={submitting} onPress={()=>{Keyboard.dismiss();setWelcome(true);setPinDigits('');setPinError(false);}} style={[s.back,{backgroundColor:colors.surface,borderColor:colors.border}]}><ArrowLeft size={22} color={colors.text}/></Pressable>
+        <View style={s.formAvatar}><CatecAvatar size={104}/></View>
         {!isRegisterMode && existingProfile ? <>
           <Text accessibilityRole="header" style={[s.heading,{color:colors.text,textAlign:'center'}]}>С возвращением</Text>
           <Text translate={false} style={[s.subtitle,{color:colors.secondary,textAlign:'center'}]}>{existingProfile.fullName}</Text>
@@ -154,8 +166,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
           <View style={s.keypad}>{[['1','2','3'],['4','5','6'],['7','8','9'],['','0','del']].map((row,index)=><View key={index} style={s.keyRow}>{row.map((key,column)=>key?<Pressable key={key} accessibilityRole="button" accessibilityLabel={key==='del'?'Удалить цифру':key} disabled={submitting} onPress={()=>key==='del'?handleDelete():handleKeyPress(key)} style={({pressed})=>[s.key,{backgroundColor:pressed?colors.selected:colors.surface,borderColor:colors.border,opacity:submitting?.5:1}]}>{key==='del'?<Delete size={24} color={colors.text}/>:<Text translate={false} style={{color:colors.text,fontSize:28,fontWeight:'400'}}>{key}</Text>}</Pressable>:<View key={column} style={s.keyEmpty}/>)}</View>)}</View>
           <Pressable disabled={submitting} accessibilityRole="button" onPress={()=>{setIsRegisterMode(true);setPinDigits('');setPinError(false);}} style={s.textButton}><Text style={{color:colors.action,fontSize:14,fontWeight:'600'}}>Регистрация другого студента</Text></Pressable>
         </>:<>
-          <Text accessibilityRole="header" style={[s.heading,{color:colors.text}]}>Ваш профиль студента</Text>
-          <Text style={[s.subtitle,{color:colors.secondary}]}>Укажите имя и группу, чтобы открыть расписание и общаться с однокурсниками.</Text>
+          <Text accessibilityRole="header" style={[s.heading,s.center,{color:colors.text}]}>Создать профиль</Text>
+          <Text style={[s.subtitle,s.center,{color:colors.secondary}]}>Укажите имя и учебную группу.</Text>
           <View style={s.form}>
             <Text style={[s.label,{color:colors.text}]}>Фамилия</Text>
             <TextInput accessibilityLabel="Фамилия" value={lastName} onChangeText={value=>{setLastName(value);setFormError('');}} maxLength={48} autoComplete="family-name" textContentType="familyName" autoCorrect={false} placeholder="Ваша фамилия" placeholderTextColor={colors.secondary} style={[s.input,{backgroundColor:colors.surface,borderColor:colors.border,color:colors.text}]}/>
@@ -170,6 +182,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
           <View style={s.privacy}><LockKeyhole size={16} color={colors.secondary}/><Text style={{flex:1,color:colors.secondary,fontSize:13,lineHeight:19}}>Четыре цифры для быстрого входа на этом устройстве.</Text></View>
           {existingProfile&&<Pressable accessibilityRole="button" onPress={()=>setIsRegisterMode(false)} style={s.textButton}><Text style={{color:colors.action,fontSize:14,fontWeight:'600'}}>Войти по коду</Text></Pressable>}
         </>}
+        </>}
         </View>
       </ScrollView>
     </Animated.View>
@@ -183,7 +196,7 @@ function AuthAction({title,onPress,disabled=false,submitting,colors}:{title:stri
 }
 const s=StyleSheet.create({
   scroll:{flexGrow:1,paddingHorizontal:24,paddingTop:24,paddingBottom:40},content:{width:'100%',maxWidth:440,alignSelf:'center'},
-  brand:{alignItems:'center',marginBottom:32},logo:{width:156,height:80,backgroundColor:'#FFFFFF',borderRadius:16,padding:10},logoImage:{width:'100%',height:'100%'},wordmark:{fontSize:17,fontWeight:'600',marginTop:12},
+  center:{textAlign:'center'},welcome:{minHeight:640,justifyContent:'center',paddingBottom:12},welcomeAvatar:{alignItems:'center',marginBottom:30},welcomeActions:{marginTop:36},formAvatar:{alignItems:'center',marginBottom:20},back:{width:44,height:44,borderRadius:22,borderWidth:1,alignItems:'center',justifyContent:'center',marginBottom:8},brand:{alignItems:'center',marginBottom:24},logo:{width:120,height:62,backgroundColor:'#FFFFFF',borderRadius:16,padding:10},logoImage:{width:'100%',height:'100%'},wordmark:{fontSize:17,fontWeight:'600',marginTop:12},
   heading:{fontSize:29,lineHeight:35,fontWeight:'700',letterSpacing:-.65},subtitle:{fontSize:16,lineHeight:24,marginTop:12},form:{marginTop:24,marginBottom:28},label:{fontSize:14,fontWeight:'600',marginBottom:8,marginTop:16},input:{minHeight:56,borderWidth:1,borderRadius:16,paddingHorizontal:16,paddingVertical:14,fontSize:16},groupField:{flexDirection:'row',alignItems:'center',gap:12},
   action:{minHeight:56,borderRadius:18,alignItems:'center',justifyContent:'center',paddingHorizontal:20,paddingVertical:16},privacy:{flexDirection:'row',alignItems:'flex-start',gap:10,marginTop:18},textButton:{minHeight:48,alignItems:'center',justifyContent:'center',marginTop:16,padding:8},
   dots:{flexDirection:'row',gap:20,justifyContent:'center',marginTop:28},dot:{width:16,height:16,borderRadius:8,borderWidth:1.5},pinFeedback:{minHeight:42,justifyContent:'center',marginTop:12},keypad:{width:'100%',maxWidth:288,alignSelf:'center',gap:12,marginTop:16},keyRow:{flexDirection:'row',justifyContent:'space-between'},key:{width:76,height:68,borderRadius:24,borderWidth:1,justifyContent:'center',alignItems:'center'},keyEmpty:{width:76,height:68},

@@ -1,6 +1,11 @@
 export type Locale = 'ru' | 'en' | 'kk';
 // UI copy only; student names, authored posts and curriculum data keep their original language.
 export const strings: Record<string, [string, string]> = {
+  "Начать": ["Get started", "Бастау"],
+  "Добро пожаловать в CATEC": ["Welcome to CATEC", "CATEC-ке қош келдіңіз"],
+  "Расписание, новости и общение — в одном приложении.": ["Schedule, news and conversations in one app.", "Кесте, жаңалықтар және қарым-қатынас — бір қолданбада."],
+  "Укажите имя и учебную группу.": ["Enter your name and study group.", "Атыңыз бен оқу тобыңызды көрсетіңіз."],
+
   "Ваш профиль студента": ["Your student profile","Студенттік профиліңіз"],
   "Укажите имя и группу, чтобы открыть расписание и общаться с однокурсниками.": ["Enter your name and group to view your schedule and chat with classmates.","Кестені көру және курстастарыңызбен сөйлесу үшін атыңыз бен тобыңызды көрсетіңіз."],
   "Фамилия": ["Last name","Тегі"],
