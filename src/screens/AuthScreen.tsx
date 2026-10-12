@@ -143,20 +143,21 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   const brand = <View style={s.brand}><View style={s.logo}><Image source={require('../../assets/catec-logo.png')} resizeMode="contain" accessibilityLabel="ЦАТЭК" style={s.logoImage}/></View><Text translate={false} style={[s.wordmark,{color:colors.text}]}>CATEC SuperApp</Text></View>;
 
   return <View style={{flex:1,backgroundColor:colors.background}}>
-    <LinearGradient pointerEvents="none" colors={[colors.wash,colors.background,colors.background]} locations={[0,.55,1]} style={StyleSheet.absoluteFill}/>
+    <LinearGradient pointerEvents="none" colors={[colors.wash,colors.fade,colors.background]} locations={[0,.48,1]} style={[s.topWash,{height:welcome?460:300}]}/>
     <Animated.View style={{flex:1,opacity:entrance,transform:[{translateY:entrance.interpolate({inputRange:[0,1],outputRange:[motionReduced?0:12,0]})}]}}>
       <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" contentInsetAdjustmentBehavior="never" showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
         <View style={s.content}>
         {welcome ? <View style={s.welcome}>
           {brand}
-          <View style={s.welcomeAvatar}><CatecAvatar size={244} pose="welcome"/></View>
+          <View style={s.welcomeAvatar}><CatecAvatar size={212} pose="welcome"/></View>
           <Text accessibilityRole="header" style={[s.heading,s.center,{color:colors.text}]}>Добро пожаловать в CATEC</Text>
           <Text style={[s.subtitle,s.center,{color:colors.secondary}]}>Расписание, новости и общение — в одном приложении.</Text>
           <View style={s.welcomeActions}><AuthAction title="Начать" onPress={()=>{setIsRegisterMode(true);setWelcome(false);}} submitting={false} colors={colors}/>
           {existingProfile&&<Pressable accessibilityRole="button" onPress={()=>{setIsRegisterMode(false);setWelcome(false);}} style={s.textButton}><Text style={{color:colors.action,fontSize:15,fontWeight:'600'}}>Войти по коду</Text></Pressable>}</View>
         </View> : <>
-        <Pressable accessibilityRole="button" accessibilityLabel="Назад" disabled={submitting} onPress={()=>{Keyboard.dismiss();setWelcome(true);setPinDigits('');setPinError(false);}} style={[s.back,{backgroundColor:colors.surface,borderColor:colors.border}]}><ArrowLeft size={22} color={colors.text}/></Pressable>
-        <View style={s.formAvatar}><CatecAvatar size={136} pose="neutral"/></View>
+        <Pressable accessibilityRole="button" accessibilityLabel="Назад" disabled={submitting} onPress={()=>{Keyboard.dismiss();setWelcome(true);setPinDigits('');setPinError(false);}} style={[s.back,{backgroundColor:'rgba(255,255,255,0.16)',borderColor:'rgba(255,255,255,0.32)'}]}><ArrowLeft size={22} color={colors.onAction}/></Pressable>
+        <View style={s.formAvatar}><CatecAvatar size={112} pose="neutral"/></View>
+        <View style={[s.panel,{backgroundColor:colors.surface}]}>
         {!isRegisterMode && existingProfile ? <>
           <Text accessibilityRole="header" style={[s.heading,{color:colors.text,textAlign:'center'}]}>С возвращением</Text>
           <Text translate={false} style={[s.subtitle,{color:colors.secondary,textAlign:'center'}]}>{existingProfile.fullName}</Text>
@@ -166,15 +167,15 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
           <View style={s.keypad}>{[['1','2','3'],['4','5','6'],['7','8','9'],['','0','del']].map((row,index)=><View key={index} style={s.keyRow}>{row.map((key,column)=>key?<Pressable key={key} accessibilityRole="button" accessibilityLabel={key==='del'?'Удалить цифру':key} disabled={submitting} onPress={()=>key==='del'?handleDelete():handleKeyPress(key)} style={({pressed})=>[s.key,{backgroundColor:pressed?colors.selected:colors.surface,borderColor:colors.border,opacity:submitting?.5:1}]}>{key==='del'?<Delete size={24} color={colors.text}/>:<Text translate={false} style={{color:colors.text,fontSize:28,fontWeight:'400'}}>{key}</Text>}</Pressable>:<View key={column} style={s.keyEmpty}/>)}</View>)}</View>
           <Pressable disabled={submitting} accessibilityRole="button" onPress={()=>{setIsRegisterMode(true);setPinDigits('');setPinError(false);}} style={s.textButton}><Text style={{color:colors.action,fontSize:14,fontWeight:'600'}}>Регистрация другого студента</Text></Pressable>
         </>:<>
-          <Text accessibilityRole="header" style={[s.heading,s.center,{color:colors.text}]}>Создать профиль</Text>
-          <Text style={[s.subtitle,s.center,{color:colors.secondary}]}>Укажите имя и учебную группу.</Text>
+          <Text accessibilityRole="header" style={[s.heading,{color:colors.text}]}>Создать профиль</Text>
+          <Text style={[s.subtitle,{color:colors.secondary}]}>Укажите имя и учебную группу.</Text>
           <View style={s.form}>
             <Text style={[s.label,{color:colors.text}]}>Фамилия</Text>
-            <TextInput accessibilityLabel="Фамилия" value={lastName} onChangeText={value=>{setLastName(value);setFormError('');}} maxLength={48} autoComplete="family-name" textContentType="familyName" autoCorrect={false} placeholder="Ваша фамилия" placeholderTextColor={colors.secondary} style={[s.input,{backgroundColor:colors.surface,borderColor:colors.border,color:colors.text}]}/>
+            <TextInput accessibilityLabel="Фамилия" value={lastName} onChangeText={value=>{setLastName(value);setFormError('');}} maxLength={48} autoComplete="family-name" textContentType="familyName" autoCorrect={false} placeholder="Ваша фамилия" placeholderTextColor={colors.secondary} style={[s.input,{backgroundColor:colors.input,borderColor:colors.input,color:colors.text}]}/>
             <Text style={[s.label,{color:colors.text}]}>Имя</Text>
-            <TextInput accessibilityLabel="Имя" value={firstName} onChangeText={value=>{setFirstName(value);setFormError('');}} maxLength={48} autoComplete="given-name" textContentType="givenName" autoCorrect={false} placeholder="Ваше имя" placeholderTextColor={colors.secondary} style={[s.input,{backgroundColor:colors.surface,borderColor:colors.border,color:colors.text}]}/>
+            <TextInput accessibilityLabel="Имя" value={firstName} onChangeText={value=>{setFirstName(value);setFormError('');}} maxLength={48} autoComplete="given-name" textContentType="givenName" autoCorrect={false} placeholder="Ваше имя" placeholderTextColor={colors.secondary} style={[s.input,{backgroundColor:colors.input,borderColor:colors.input,color:colors.text}]}/>
             <Text style={[s.label,{color:colors.text}]}>Учебная группа</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel="Выбрать учебную группу" accessibilityState={{expanded:groupPicker}} onPress={()=>{Keyboard.dismiss();setGroupPicker(true);}} style={({pressed})=>[s.input,s.groupField,{backgroundColor:pressed?colors.selected:colors.surface,borderColor:colors.border}]}><Text translate={false} style={{color:selectedGroup?colors.text:colors.secondary,fontSize:16,flex:1}}>{selectedGroup||'Выберите группу'}</Text><ChevronDown size={20} color={colors.secondary}/></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="Выбрать учебную группу" accessibilityState={{expanded:groupPicker}} onPress={()=>{Keyboard.dismiss();setGroupPicker(true);}} style={({pressed})=>[s.input,s.groupField,{backgroundColor:pressed?colors.selected:colors.input,borderColor:colors.border}]}><Text translate={false} style={{color:selectedGroup?colors.text:colors.secondary,fontSize:16,flex:1}}>{selectedGroup||'Выберите группу'}</Text><ChevronDown size={20} color={colors.secondary}/></Pressable>
             <Text style={{color:colors.secondary,fontSize:13,lineHeight:19,marginTop:10}}>Группа закрепляется при регистрации.</Text>
             {!!formError&&<Text accessibilityLiveRegion="polite" style={{color:colors.danger,fontSize:14,marginTop:12}}>{formError}</Text>}
           </View>
@@ -182,6 +183,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
           <View style={s.privacy}><LockKeyhole size={16} color={colors.secondary}/><Text style={{flex:1,color:colors.secondary,fontSize:13,lineHeight:19}}>Четыре цифры для быстрого входа на этом устройстве.</Text></View>
           {existingProfile&&<Pressable accessibilityRole="button" onPress={()=>setIsRegisterMode(false)} style={s.textButton}><Text style={{color:colors.action,fontSize:14,fontWeight:'600'}}>Войти по коду</Text></Pressable>}
         </>}
+        </View>
         </>}
         </View>
       </ScrollView>
@@ -195,10 +197,10 @@ function AuthAction({title,onPress,disabled=false,submitting,colors}:{title:stri
   return <Pressable accessibilityRole="button" disabled={disabled||submitting} onPress={onPress} style={({pressed})=>[s.action,{backgroundColor:colors.action,opacity:disabled?.45:pressed?.8:1}]}>{submitting?<ActivityIndicator color={colors.onAction}/>:<Text style={{color:colors.onAction,fontSize:16,fontWeight:'600'}}>{title}</Text>}</Pressable>;
 }
 const s=StyleSheet.create({
-  scroll:{flexGrow:1,paddingHorizontal:24,paddingTop:24,paddingBottom:40},content:{width:'100%',maxWidth:440,alignSelf:'center'},
-  center:{textAlign:'center'},welcome:{minHeight:640,justifyContent:'center',paddingBottom:12},welcomeAvatar:{alignItems:'center',marginBottom:24},welcomeActions:{marginTop:36},formAvatar:{alignItems:'center',marginBottom:16},back:{width:44,height:44,borderRadius:22,borderWidth:1,alignItems:'center',justifyContent:'center',marginBottom:8},brand:{alignItems:'center',marginBottom:24},logo:{width:120,height:62,backgroundColor:'#FFFFFF',borderRadius:16,padding:10},logoImage:{width:'100%',height:'100%'},wordmark:{fontSize:17,fontWeight:'600',marginTop:12},
-  heading:{fontSize:29,lineHeight:35,fontWeight:'700',letterSpacing:-.65},subtitle:{fontSize:16,lineHeight:24,marginTop:12},form:{marginTop:12,marginBottom:24},label:{fontSize:14,fontWeight:'600',marginBottom:8,marginTop:16},input:{minHeight:56,borderWidth:1,borderRadius:16,paddingHorizontal:16,paddingVertical:14,fontSize:16},groupField:{flexDirection:'row',alignItems:'center',gap:12},
-  action:{minHeight:56,borderRadius:18,alignItems:'center',justifyContent:'center',paddingHorizontal:20,paddingVertical:16},privacy:{flexDirection:'row',alignItems:'flex-start',gap:10,marginTop:18},textButton:{minHeight:48,alignItems:'center',justifyContent:'center',marginTop:16,padding:8},
+  topWash:{position:'absolute',top:0,left:0,right:0},scroll:{flexGrow:1,paddingHorizontal:20,paddingTop:16,paddingBottom:40},content:{width:'100%',maxWidth:440,alignSelf:'center'},
+  center:{textAlign:'center'},welcome:{minHeight:660,justifyContent:'center',paddingHorizontal:4,paddingBottom:12},welcomeAvatar:{alignItems:'center',marginBottom:24},welcomeActions:{marginTop:36},formAvatar:{alignItems:'center',marginTop:-28,marginBottom:24},panel:{borderRadius:28,padding:20},back:{width:44,height:44,borderRadius:22,borderWidth:1,alignItems:'center',justifyContent:'center',marginBottom:8},brand:{alignItems:'center',marginBottom:24},logo:{width:120,height:62,backgroundColor:'#FFFFFF',borderRadius:16,padding:10},logoImage:{width:'100%',height:'100%'},wordmark:{fontSize:17,fontWeight:'600',marginTop:12},
+  heading:{fontSize:27,lineHeight:33,fontWeight:'700',letterSpacing:-.65},subtitle:{fontSize:15,lineHeight:22,marginTop:8},form:{marginTop:12,marginBottom:24},label:{fontSize:13,fontWeight:'600',marginBottom:8,marginTop:16},input:{minHeight:56,borderWidth:1,borderRadius:20,paddingHorizontal:16,paddingVertical:14,fontSize:16},groupField:{flexDirection:'row',alignItems:'center',gap:12},
+  action:{minHeight:56,borderRadius:28,alignItems:'center',justifyContent:'center',paddingHorizontal:20,paddingVertical:16},privacy:{flexDirection:'row',alignItems:'flex-start',gap:10,marginTop:18},textButton:{minHeight:48,alignItems:'center',justifyContent:'center',marginTop:16,padding:8},
   dots:{flexDirection:'row',gap:20,justifyContent:'center',marginTop:28},dot:{width:16,height:16,borderRadius:8,borderWidth:1.5},pinFeedback:{minHeight:42,justifyContent:'center',marginTop:12},keypad:{width:'100%',maxWidth:288,alignSelf:'center',gap:12,marginTop:16},keyRow:{flexDirection:'row',justifyContent:'space-between'},key:{width:76,height:68,borderRadius:24,borderWidth:1,justifyContent:'center',alignItems:'center'},keyEmpty:{width:76,height:68},
   modalTitle:{fontSize:24,fontWeight:'600',lineHeight:30,marginBottom:10},groupOption:{minHeight:72,padding:14,borderRadius:16,borderBottomWidth:StyleSheet.hairlineWidth,flexDirection:'row',alignItems:'center',gap:12,marginBottom:6},codeContent:{alignItems:'center',paddingTop:4},codeAvatar:{alignItems:'center',marginBottom:20},codeBox:{paddingHorizontal:26,paddingVertical:18,borderRadius:20,marginVertical:24}
 });

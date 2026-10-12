@@ -7,5 +7,5 @@ import { authPalette } from '../theme/authTheme';
 export default function AuthRoute() {
   const { profile, authenticate } = useCampus();
   const { mode } = useTheme();
-  return <ScreenSafeArea edges={['top','bottom','left','right']} style={{flex:1,backgroundColor:authPalette(mode).wash}}><AuthScreen existingProfile={profile} onSuccessLogin={authenticate} onRegisterNew={authenticate}/></ScreenSafeArea>;
+  return <ScreenSafeArea edges={['top','left','right']} style={{flex:1,backgroundColor:authPalette(mode).wash}}><AuthScreen existingProfile={profile} onSuccessLogin={authenticate} onRegisterNew={authenticate}/></ScreenSafeArea>;
 }
