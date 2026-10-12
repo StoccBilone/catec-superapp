@@ -1,14 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, StyleSheet, ScrollView, Platform } from "react-native";
-import { Text, TextInput, TouchableOpacity, Alert } from "../components/Typography";
+import { ActivityIndicator, Animated, Easing, Image, Keyboard, ScrollView, StyleSheet, View } from 'react-native';
+import { Text, TextInput, Pressable, Alert } from '../components/Typography';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import { Shield, ArrowRight, Check, KeyRound, Delete } from 'lucide-react-native';
+import { Check, ChevronDown, Delete, LockKeyhole } from 'lucide-react-native';
 import { UserProfile } from '../types';
 import { CATEC_GROUPS } from '../data/catecData';
 import { useTheme } from '../theme/themeContext';
-import { GlassCard } from '../components/GlassCard';
-import { GlassButton } from '../components/GlassButton';
+import { authPalette } from '../theme/authTheme';
+import { usePreferences } from '../context/PreferencesContext';
 import { GlassModal } from '../components/GlassModal';
 
 interface AuthScreenProps {
@@ -22,13 +22,18 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   onSuccessLogin,
   onRegisterNew,
 }) => {
-  const { colors } = useTheme();
+  const { mode } = useTheme();
+  const colors = authPalette(mode);
+  const { motionReduced } = usePreferences();
+  const [groupPicker, setGroupPicker] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [entrance] = useState(() => new Animated.Value(0));
 
   // State
   const [isRegisterMode, setIsRegisterMode] = useState(!existingProfile);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [selectedGroup, setSelectedGroup] = useState<string>('П4 А');
+  const [selectedGroup, setSelectedGroup] = useState<string>('');
 
   // PIN login state
   const [pinDigits, setPinDigits] = useState<string>('');
@@ -41,6 +46,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   const entering = useRef(false);
   const alive = useRef(true);
   const pinReset = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => { entrance.setValue(0); const animation = Animated.timing(entrance, { toValue: 1, duration: motionReduced ? 0 : 260, easing: Easing.out(Easing.cubic), useNativeDriver: true }); animation.start(); return () => animation.stop(); }, [entrance, motionReduced, isRegisterMode]);
   useEffect(() => { alive.current = true; return () => { alive.current = false; if (pinReset.current) clearTimeout(pinReset.current); }; }, []);
   const login = async (profile: UserProfile, register = false) => {
     if (entering.current) return;
@@ -92,16 +98,18 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   };
 
   const handleRegisterSubmit = () => {
-    if (!firstName.trim() || !lastName.trim()) {
-      Alert.alert('Ошибка', 'Пожалуйста, введите ваше имя и фамилию.');
+    if (!firstName.trim() || !lastName.trim() || !CATEC_GROUPS.some(group => group.name === selectedGroup)) {
+      setFormError('Введите имя, фамилию и выберите учебную группу.');
       return;
     }
 
     try {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     } catch {}
 
-    // Generate random 4-digit ID
+    setFormError('');
+    Keyboard.dismiss();
+    // Generate a device PIN; the cloud assigns the public student ID.
     const randomCode = String(Math.floor(1000 + Math.random() * 9000));
     const groupMeta = CATEC_GROUPS.find((g) => g.name === selectedGroup) || CATEC_GROUPS[0];
 
@@ -129,505 +137,55 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
     }
   };
 
-  // ===================== PIN LOGIN SCREEN =====================
-  if (!isRegisterMode && existingProfile) {
-    return (
-      <View style={[styles.container, { backgroundColor: colors.canvas }]}>
-        <View style={styles.pinWrapper}>
-          <View style={styles.topBadgeRow}>
-            <View style={[styles.iconShield, { backgroundColor: colors.accentLight }]}>
-              <Shield size={24} color={colors.accent} />
-            </View>
-            <Text style={[styles.catecLabel, { color: colors.accent }]}>CATEC SuperApp</Text>
+  const canRegister = !!firstName.trim() && !!lastName.trim() && !!selectedGroup;
+  const brand = <View style={s.brand}><View style={s.logo}><Image source={require('../../assets/catec-logo.png')} resizeMode="contain" accessibilityLabel="ЦАТЭК" style={s.logoImage}/></View><Text translate={false} style={[s.wordmark,{color:colors.text}]}>CATEC SuperApp</Text></View>;
+
+  return <View style={{flex:1,backgroundColor:colors.background}}>
+    <LinearGradient pointerEvents="none" colors={[colors.wash,colors.background,colors.background]} locations={[0,.55,1]} style={StyleSheet.absoluteFill}/>
+    <Animated.View style={{flex:1,opacity:entrance,transform:[{translateY:entrance.interpolate({inputRange:[0,1],outputRange:[motionReduced?0:12,0]})}]}}>
+      <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" contentInsetAdjustmentBehavior="never" showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
+        <View style={s.content}>{brand}
+        {!isRegisterMode && existingProfile ? <>
+          <Text accessibilityRole="header" style={[s.heading,{color:colors.text,textAlign:'center'}]}>С возвращением</Text>
+          <Text translate={false} style={[s.subtitle,{color:colors.secondary,textAlign:'center'}]}>{existingProfile.fullName}</Text>
+          <Text translate={false} style={{color:colors.secondary,textAlign:'center',fontSize:14,marginTop:4}}>{existingProfile.group}</Text>
+          <View accessibilityLabel="Код входа" style={s.dots}>{[0,1,2,3].map(index=><View key={index} style={[s.dot,{borderColor:pinError?colors.danger:colors.accent,backgroundColor:index<pinDigits.length?(pinError?colors.danger:colors.accent):'transparent'}]}/>)}</View>
+          <View style={s.pinFeedback}><Text accessibilityLiveRegion="polite" style={{color:pinError?colors.danger:colors.secondary,fontSize:14,textAlign:'center'}}>{submitting?'Входим…':pinError?'Неверный код. Попробуйте снова.':'Введите 4-значный код'}</Text></View>
+          <View style={s.keypad}>{[['1','2','3'],['4','5','6'],['7','8','9'],['','0','del']].map((row,index)=><View key={index} style={s.keyRow}>{row.map((key,column)=>key?<Pressable key={key} accessibilityRole="button" accessibilityLabel={key==='del'?'Удалить цифру':key} disabled={submitting} onPress={()=>key==='del'?handleDelete():handleKeyPress(key)} style={({pressed})=>[s.key,{backgroundColor:pressed?colors.selected:colors.surface,borderColor:colors.border,opacity:submitting?.5:1}]}>{key==='del'?<Delete size={24} color={colors.text}/>:<Text translate={false} style={{color:colors.text,fontSize:28,fontWeight:'400'}}>{key}</Text>}</Pressable>:<View key={column} style={s.keyEmpty}/>)}</View>)}</View>
+          <Pressable disabled={submitting} accessibilityRole="button" onPress={()=>{setIsRegisterMode(true);setPinDigits('');setPinError(false);}} style={s.textButton}><Text style={{color:colors.action,fontSize:14,fontWeight:'600'}}>Регистрация другого студента</Text></Pressable>
+        </>:<>
+          <Text accessibilityRole="header" style={[s.heading,{color:colors.text}]}>Ваш профиль студента</Text>
+          <Text style={[s.subtitle,{color:colors.secondary}]}>Укажите имя и группу, чтобы открыть расписание и общаться с однокурсниками.</Text>
+          <View style={s.form}>
+            <Text style={[s.label,{color:colors.text}]}>Фамилия</Text>
+            <TextInput accessibilityLabel="Фамилия" value={lastName} onChangeText={value=>{setLastName(value);setFormError('');}} maxLength={48} autoComplete="family-name" textContentType="familyName" autoCorrect={false} placeholder="Ваша фамилия" placeholderTextColor={colors.secondary} style={[s.input,{backgroundColor:colors.surface,borderColor:colors.border,color:colors.text}]}/>
+            <Text style={[s.label,{color:colors.text}]}>Имя</Text>
+            <TextInput accessibilityLabel="Имя" value={firstName} onChangeText={value=>{setFirstName(value);setFormError('');}} maxLength={48} autoComplete="given-name" textContentType="givenName" autoCorrect={false} placeholder="Ваше имя" placeholderTextColor={colors.secondary} style={[s.input,{backgroundColor:colors.surface,borderColor:colors.border,color:colors.text}]}/>
+            <Text style={[s.label,{color:colors.text}]}>Учебная группа</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel="Выбрать учебную группу" accessibilityState={{expanded:groupPicker}} onPress={()=>{Keyboard.dismiss();setGroupPicker(true);}} style={({pressed})=>[s.input,s.groupField,{backgroundColor:pressed?colors.selected:colors.surface,borderColor:colors.border}]}><Text translate={false} style={{color:selectedGroup?colors.text:colors.secondary,fontSize:16,flex:1}}>{selectedGroup||'Выберите группу'}</Text><ChevronDown size={20} color={colors.secondary}/></Pressable>
+            <Text style={{color:colors.secondary,fontSize:13,lineHeight:19,marginTop:10}}>Группа закрепляется при регистрации.</Text>
+            {!!formError&&<Text accessibilityLiveRegion="polite" style={{color:colors.danger,fontSize:14,marginTop:12}}>{formError}</Text>}
           </View>
-
-          <Text style={[styles.pinTitle, { color: colors.textPrimary }]}>
-            Вход в систему
-          </Text>
-          <Text translate={false} style={[styles.pinSub, { color: colors.textSecondary }]}>
-            {existingProfile.fullName} ({existingProfile.group})
-          </Text>
-
-          {/* 4 Pin Circles */}
-          <View style={styles.pinDotsRow}>
-            {[0, 1, 2, 3].map((idx) => {
-              const isFilled = pinDigits.length > idx;
-              return (
-                <View
-                  key={idx}
-                  style={[
-                    styles.pinDot,
-                    {
-                      borderColor: pinError ? colors.danger : colors.accent,
-                      backgroundColor: isFilled
-                        ? (pinError ? colors.danger : colors.accent)
-                        : 'transparent',
-                    },
-                  ]}
-                />
-              );
-            })}
-          </View>
-
-          {pinError && (
-            <Text style={[styles.errorText, { color: colors.danger }]}>
-              Неверный код доступа. Попробуйте снова.
-            </Text>
-          )}
-
-          {/* Custom iOS Numeric Keypad */}
-          <View style={styles.keypad}>
-            {[['1', '2', '3'], ['4', '5', '6'], ['7', '8', '9'], ['', '0', 'del']].map((row, rIdx) => (
-              <View key={rIdx} style={styles.keypadRow}>
-                {row.map((k, kIdx) => {
-                  if (k === '') {
-                    return <View key={kIdx} style={styles.keypadKeyEmpty} />;
-                  }
-                  if (k === 'del') {
-                    return (
-                      <TouchableOpacity
-                        key={kIdx}
-                        activeOpacity={0.6}
-                        onPress={handleDelete}
-                        style={[styles.keypadKey, { backgroundColor: colors.cardBg }]}
-                      >
-                        <Delete size={22} color={colors.textPrimary} />
-                      </TouchableOpacity>
-                    );
-                  }
-                  return (
-                    <TouchableOpacity
-                      key={kIdx}
-                      activeOpacity={0.6}
-                      onPress={() => handleKeyPress(k)}
-                      style={[styles.keypadKey, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}
-                    >
-                      <Text style={[styles.keypadText, { color: colors.textPrimary }]}>{k}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            ))}
-          </View>
-
-          <TouchableOpacity
-            activeOpacity={0.7}
-            onPress={() => setIsRegisterMode(true)}
-            style={styles.switchAccountBtn}
-          >
-            <Text style={[styles.switchAccountText, { color: colors.accent }]}>
-              Регистрация другого студента
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
-
-  // ===================== REGISTRATION SCREEN =====================
-  return (
-    <View style={[styles.container, { backgroundColor: colors.canvas }]}>
-      <ScrollView
-        automaticallyAdjustKeyboardInsets
-        contentInsetAdjustmentBehavior="never"
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.regHeader}>
-          <LinearGradient
-            colors={[colors.accent, colors.accent]}
-            style={styles.logoBadge}
-          >
-            <Shield size={32} color={colors.onAccent} />
-          </LinearGradient>
-          <Text style={[styles.regCollegeName, { color: colors.textPrimary }]}>ЦАТЭК АЛМАТЫ</Text>
-          <Text style={[styles.regSubtitle, { color: colors.textSecondary }]}>
-            Информационная система расписания колледжа
-          </Text>
-        </View>
-
-        {/* Form */}
-        <View style={styles.formSection}>
-          <Text style={[styles.inputGroupTitle, { color: colors.accent }]}>
-            ЛИЧНЫЕ ДАННЫЕ СТУДЕНТА
-          </Text>
-
-          <GlassCard style={styles.cardFields}>
-            <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>ФАМИЛИЯ</Text>
-            <TextInput
-              value={lastName}
-              maxLength={48}
-              onChangeText={setLastName}
-              placeholder="Смирнов"
-              placeholderTextColor={colors.textMuted}
-              style={[styles.textInput, { color: colors.textPrimary }]}
-            />
-
-            <View style={[styles.divider, { backgroundColor: colors.divider }]} />
-
-            <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>ИМЯ</Text>
-            <TextInput
-              value={firstName}
-              maxLength={48}
-              onChangeText={setFirstName}
-              placeholder="Алексей"
-              placeholderTextColor={colors.textMuted}
-              style={[styles.textInput, { color: colors.textPrimary }]}
-            />
-          </GlassCard>
-        </View>
-
-        {/* Group Selection */}
-        <View style={styles.formSection}>
-          <View style={styles.groupHeaderRow}>
-            <Text style={[styles.inputGroupTitle, { color: colors.accent }]}>
-              ВЫБОР УЧЕБНОЙ ГРУППЫ (ЦАТЭК 4 КУРС)
-            </Text>
-            <Text style={[styles.groupHint, { color: colors.textMuted }]}>
-              12 групп
-            </Text>
-          </View>
-
-          <View style={styles.groupsGrid}>
-            {CATEC_GROUPS.map((grp) => {
-              const isSelected = selectedGroup === grp.name;
-              return (
-                <TouchableOpacity
-                  key={grp.id}
-                  activeOpacity={0.7}
-                  onPress={() => {
-                    try { Haptics.selectionAsync(); } catch {}
-                    setSelectedGroup(grp.name);
-                  }}
-                  style={[
-                    styles.groupTile,
-                    {
-                      backgroundColor: isSelected ? colors.accentLight : colors.cardBg,
-                      borderColor: isSelected ? colors.accent : colors.cardBorder,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.groupTileName,
-                      { color: isSelected ? colors.accent : colors.textPrimary },
-                    ]}
-                  >
-                    {grp.name}
-                  </Text>
-                  <Text
-                    style={[styles.groupTileSub, { color: colors.textMuted }]}
-                    numberOfLines={1}
-                  >
-                    {grp.specialty.split(' ')[0]}
-                  </Text>
-                  {isSelected && (
-                    <View style={[styles.checkDot, { backgroundColor: colors.accent }]}>
-                      <Check size={10} color={colors.onAccent} />
-                    </View>
-                  )}
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
-
-        <View style={styles.submitSection}>
-          <GlassButton
-            title="Зарегистрироваться и получить код"
-            onPress={handleRegisterSubmit}
-            size="lg"
-            variant="primary"
-            icon={<ArrowRight size={20} color={colors.onAccent} />}
-          />
-
-          {existingProfile && (
-            <TouchableOpacity
-              onPress={() => setIsRegisterMode(false)}
-              style={styles.cancelRegBtn}
-            >
-              <Text style={[styles.cancelRegText, { color: colors.textSecondary }]}>
-                У меня уже есть код (Войти по PIN-коду)
-              </Text>
-            </TouchableOpacity>
-          )}
+          <AuthAction title="Получить код входа" onPress={handleRegisterSubmit} disabled={!canRegister} submitting={submitting} colors={colors}/>
+          <View style={s.privacy}><LockKeyhole size={16} color={colors.secondary}/><Text style={{flex:1,color:colors.secondary,fontSize:13,lineHeight:19}}>Четыре цифры для быстрого входа на этом устройстве.</Text></View>
+          {existingProfile&&<Pressable accessibilityRole="button" onPress={()=>setIsRegisterMode(false)} style={s.textButton}><Text style={{color:colors.action,fontSize:14,fontWeight:'600'}}>Войти по коду</Text></Pressable>}
+        </>}
         </View>
       </ScrollView>
-
-      {/* Code Modal Confirmation */}
-      <GlassModal
-        visible={!!generatedCode}
-        onClose={handleFinishRegistration}
-      >
-        <View style={styles.codeModalBody}>
-          <View style={[styles.codeIconBox, { backgroundColor: colors.accentLight }]}>
-            <KeyRound size={32} color={colors.accent} />
-          </View>
-          <Text style={[styles.codeModalTitle, { color: colors.textPrimary }]}>
-            Регистрация завершена!
-          </Text>
-          <Text style={[styles.codeModalDesc, { color: colors.textSecondary }]}>
-            Вам присвоен персональный 4-значный код доступа в систему ЦАТЭК:
-          </Text>
-
-          {/* Big Highlighted 4-Digit Code Box */}
-          <View style={[styles.codeBox, { backgroundColor: colors.cardElevated, borderColor: colors.accent }]}>
-            <Text style={[styles.codeText, { color: colors.accent }]}>
-              {generatedCode}
-            </Text>
-          </View>
-
-          <Text style={[styles.codeNotice, { color: colors.textMuted }]}>
-            Запомните этот код! Он потребуется для быстрого входа в личный кабинет при выходе из приложения.
-          </Text>
-
-          <GlassButton
-            title="Перейти к расписанию"
-            disabled={submitting}
-            onPress={handleFinishRegistration}
-            size="lg"
-            variant="primary"
-          />
-        </View>
-      </GlassModal>
-    </View>
-  );
+    </Animated.View>
+    <GlassModal visible={groupPicker} onClose={()=>setGroupPicker(false)}><Text accessibilityRole="header" style={[s.modalTitle,{color:colors.text}]}>Учебная группа</Text><Text style={{color:colors.secondary,fontSize:14,marginBottom:16}}>Выберите свою группу</Text>{CATEC_GROUPS.map(group=><Pressable accessibilityRole="radio" accessibilityState={{checked:selectedGroup===group.name}} key={group.id} onPress={()=>{setSelectedGroup(group.name);setFormError('');setGroupPicker(false);void Haptics.selectionAsync().catch(()=>{});}} style={({pressed})=>[s.groupOption,{backgroundColor:selectedGroup===group.name||pressed?colors.selected:'transparent',borderColor:colors.border}]}><View style={{flex:1}}><Text translate={false} style={{color:colors.text,fontSize:17,fontWeight:'600'}}>{group.name}</Text><Text translate={false} style={{color:colors.secondary,fontSize:13,lineHeight:18,marginTop:4}}>{group.specialty}</Text></View>{selectedGroup===group.name&&<Check size={22} color={colors.action}/>}</Pressable>)}</GlassModal>
+    <GlassModal visible={!!generatedCode} onClose={()=>{if(!submitting){setGeneratedCode(null);setRegisteredProfile(null);}}}><View style={s.codeContent}><View style={[s.lock,{backgroundColor:colors.selected}]}><LockKeyhole size={26} color={colors.action}/></View><Text accessibilityRole="header" style={[s.modalTitle,{color:colors.text,textAlign:'center'}]}>Сохраните код входа</Text><Text style={{color:colors.secondary,textAlign:'center',fontSize:15,lineHeight:22}}>Он понадобится для входа на этом устройстве.</Text><View style={[s.codeBox,{backgroundColor:colors.selected}]}><Text translate={false} style={{color:colors.action,fontSize:42,fontWeight:'600',letterSpacing:10,fontVariant:['tabular-nums']}}>{generatedCode}</Text></View><Text translate={false} style={{color:colors.secondary,fontSize:14,marginBottom:24}}>{registeredProfile?.fullName} · {registeredProfile?.group}</Text><View style={{width:'100%'}}><AuthAction title="Создать профиль" onPress={handleFinishRegistration} submitting={submitting} colors={colors}/></View></View></GlassModal>
+  </View>;
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'ios' ? 40 : 20,
-    paddingBottom: 40,
-  },
-  regHeader: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  logoBadge: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-  },
-  regCollegeName: {
-    fontSize: 22,
-    fontWeight: '700',
-    letterSpacing: 1.2,
-  },
-  regSubtitle: {
-    fontSize: 13,
-    marginTop: 4,
-    textAlign: 'center',
-  },
-  formSection: {
-    marginBottom: 20,
-  },
-  inputGroupTitle: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    marginBottom: 8,
-  },
-  groupHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  groupHint: {
-    fontSize: 11,
-  },
-  cardFields: {
-    padding: 6,
-  },
-  fieldLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.6,
-    marginBottom: 4,
-  },
-  textInput: {
-    fontSize: 16,
-    paddingVertical: 6,
-  },
-  divider: {
-    height: 1,
-    marginVertical: 10,
-  },
-  groupsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  groupTile: {
-    width: '31%',
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    borderRadius: 14,
-    borderWidth: 1,
-    alignItems: 'center',
-    position: 'relative',
-  },
-  groupTileName: {
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  groupTileSub: {
-    fontSize: 10,
-    marginTop: 2,
-  },
-  checkDot: {
-    position: 'absolute',
-    top: 5,
-    right: 5,
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  submitSection: {
-    marginTop: 10,
-  },
-  cancelRegBtn: {
-    alignItems: 'center',
-    marginTop: 14,
-    paddingVertical: 8,
-  },
-  cancelRegText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  // PIN View
-  pinWrapper: {
-    flex: 1,
-    paddingHorizontal: 24,
-    paddingTop: Platform.OS === 'ios' ? 80 : 50,
-    alignItems: 'center',
-  },
-  topBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 16,
-  },
-  iconShield: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  catecLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 1,
-  },
-  pinTitle: {
-    fontSize: 26,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  pinSub: {
-    fontSize: 14,
-    marginBottom: 28,
-  },
-  pinDotsRow: {
-    flexDirection: 'row',
-    gap: 18,
-    marginBottom: 16,
-  },
-  pinDot: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    borderWidth: 2,
-  },
-  errorText: {
-    fontSize: 12,
-    fontWeight: '600',
-    marginBottom: 10,
-  },
-  keypad: {
-    width: '100%',
-    maxWidth: 280,
-    gap: 14,
-    marginTop: 16,
-  },
-  keypadRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  keypadKey: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  keypadKeyEmpty: {
-    width: 70,
-    height: 70,
-  },
-  keypadText: {
-    fontSize: 26,
-    fontWeight: '600',
-  },
-  switchAccountBtn: {
-    marginTop: 26,
-    paddingVertical: 10,
-  },
-  switchAccountText: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  // Code Modal
-  codeModalBody: {
-    alignItems: 'center',
-    paddingVertical: 16,
-  },
-  codeIconBox: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-  },
-  codeModalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 6,
-  },
-  codeModalDesc: {
-    fontSize: 13,
-    textAlign: 'center',
-    paddingHorizontal: 16,
-    marginBottom: 18,
-  },
-  codeBox: {
-    paddingHorizontal: 28,
-    paddingVertical: 14,
-    borderRadius: 16,
-    borderWidth: 2,
-    marginBottom: 14,
-  },
-  codeText: {
-    fontSize: 36,
-    fontWeight: '700',
-    letterSpacing: 8,
-  },
-  codeNotice: {
-    fontSize: 12,
-    textAlign: 'center',
-    paddingHorizontal: 20,
-    marginBottom: 24,
-  },
+function AuthAction({title,onPress,disabled=false,submitting,colors}:{title:string;onPress:()=>void;disabled?:boolean;submitting:boolean;colors:ReturnType<typeof authPalette>}) {
+  return <Pressable accessibilityRole="button" disabled={disabled||submitting} onPress={onPress} style={({pressed})=>[s.action,{backgroundColor:colors.action,opacity:disabled?.45:pressed?.8:1}]}>{submitting?<ActivityIndicator color={colors.onAction}/>:<Text style={{color:colors.onAction,fontSize:16,fontWeight:'600'}}>{title}</Text>}</Pressable>;
+}
+const s=StyleSheet.create({
+  scroll:{flexGrow:1,paddingHorizontal:24,paddingTop:24,paddingBottom:40},content:{width:'100%',maxWidth:440,alignSelf:'center'},
+  brand:{alignItems:'center',marginBottom:32},logo:{width:156,height:80,backgroundColor:'#FFFFFF',borderRadius:16,padding:10},logoImage:{width:'100%',height:'100%'},wordmark:{fontSize:17,fontWeight:'600',marginTop:12},
+  heading:{fontSize:29,lineHeight:35,fontWeight:'700',letterSpacing:-.65},subtitle:{fontSize:16,lineHeight:24,marginTop:12},form:{marginTop:24,marginBottom:28},label:{fontSize:14,fontWeight:'600',marginBottom:8,marginTop:16},input:{minHeight:56,borderWidth:1,borderRadius:16,paddingHorizontal:16,paddingVertical:14,fontSize:16},groupField:{flexDirection:'row',alignItems:'center',gap:12},
+  action:{minHeight:56,borderRadius:18,alignItems:'center',justifyContent:'center',paddingHorizontal:20,paddingVertical:16},privacy:{flexDirection:'row',alignItems:'flex-start',gap:10,marginTop:18},textButton:{minHeight:48,alignItems:'center',justifyContent:'center',marginTop:16,padding:8},
+  dots:{flexDirection:'row',gap:20,justifyContent:'center',marginTop:28},dot:{width:16,height:16,borderRadius:8,borderWidth:1.5},pinFeedback:{minHeight:42,justifyContent:'center',marginTop:12},keypad:{width:'100%',maxWidth:288,alignSelf:'center',gap:12,marginTop:16},keyRow:{flexDirection:'row',justifyContent:'space-between'},key:{width:76,height:68,borderRadius:24,borderWidth:1,justifyContent:'center',alignItems:'center'},keyEmpty:{width:76,height:68},
+  modalTitle:{fontSize:24,fontWeight:'600',lineHeight:30,marginBottom:10},groupOption:{minHeight:72,padding:14,borderRadius:16,borderBottomWidth:StyleSheet.hairlineWidth,flexDirection:'row',alignItems:'center',gap:12,marginBottom:6},codeContent:{alignItems:'center',paddingTop:4},lock:{width:60,height:60,borderRadius:20,alignItems:'center',justifyContent:'center',marginBottom:20},codeBox:{paddingHorizontal:26,paddingVertical:18,borderRadius:20,marginVertical:24}
 });
